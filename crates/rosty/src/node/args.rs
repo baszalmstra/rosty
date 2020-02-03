@@ -4,10 +4,10 @@ use std::borrow::Cow;
 /// A builder helper class to construct a new ROS `Node`
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NodeArgs {
-    name: String,
-    master_uri: String,
-    hostname: String,
-    namespace: String,
+    pub name: String,
+    pub master_uri: String,
+    pub hostname: String,
+    pub namespace: String,
 }
 
 impl NodeArgs {
@@ -16,8 +16,8 @@ impl NodeArgs {
     ///
     /// * `default_name` - The default name of the node. This name can be overwritten on the
     ///   command line but must also be specified here as a sensible default.
-    pub fn new<S: AsRef<str>>(default_name: S) -> NodeArgs {
-        NodeBuilder {
+    pub fn new<S: AsRef<str>>(default_name: S) -> Self {
+        NodeArgs {
             name: opt_name().unwrap_or_else(|| default_name.as_ref().to_owned()),
             master_uri: master_uri(),
             hostname: hostname(),
@@ -68,7 +68,7 @@ fn opt_name() -> Option<String> {
 fn master_uri() -> String {
     find_arg_with_prefix("__master:=")
         .or_else(|| env::var("ROS_MASTER_URI").ok())
-        .unwrap_or_else(|_| "http://localhost:11311".to_owned())
+        .unwrap_or_else(|| "http://localhost:11311".to_owned())
 }
 
 /// Returns the hostname of the node. Checks the command line arguments for `__hostname:=`,
@@ -79,7 +79,7 @@ fn hostname() -> String {
         .or_else(|| find_arg_with_prefix("__ip:="))
         .or_else(|| env::var("ROS_HOSTNAME").ok())
         .or_else(|| env::var("ROS_IP").ok())
-        .unwrap_or_else(system_hostname())
+        .unwrap_or_else(system_hostname)
 }
 
 /// Returns the namespace that hosts the node, checks the command line and ROS_NAMESPACE environment

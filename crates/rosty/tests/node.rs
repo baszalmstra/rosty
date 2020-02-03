@@ -4,5 +4,5 @@ mod util;
 fn register_node() {
     let _roscore = util::run_roscore().unwrap();
 
-    let node = rosty::NodeBuilder::new("register_test");
+    rosty::init("node_test").unwrap();
 }
