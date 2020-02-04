@@ -27,8 +27,8 @@ pub fn xml<T: std::io::Read>(mut r: T) -> Result<Value> {
     let mut content = String::new();
     r.read_to_string(&mut content)
         .chain_err(|| "Failed to read data source.")?;
-    let data: XmlValue = from_str(&wrap_in_string(content))
-        .chain_err(|| "Failed to parse XML-RPC data.")?;
+    let data: XmlValue =
+        from_str(&wrap_in_string(content)).chain_err(|| "Failed to parse XML-RPC data.")?;
     data.into()
 }
 
@@ -36,8 +36,8 @@ pub fn call<T: std::io::Read>(mut r: T) -> Result<Call> {
     let mut content = String::new();
     r.read_to_string(&mut content)
         .chain_err(|| "Failed to read data source.")?;
-    let data: XmlCall = from_str(&wrap_in_string(content))
-        .chain_err(|| "Failed to parse XML-RPC call.")?;
+    let data: XmlCall =
+        from_str(&wrap_in_string(content)).chain_err(|| "Failed to parse XML-RPC call.")?;
     data.into()
 }
 
@@ -45,8 +45,8 @@ pub fn response<T: std::io::Read>(mut r: T) -> Result<Response> {
     let mut content = String::new();
     r.read_to_string(&mut content)
         .chain_err(|| "Failed to read data source.")?;
-    let data: XmlResponse = from_str(&wrap_in_string(content))
-        .chain_err(|| "Failed to parse XML-RPC response.")?;
+    let data: XmlResponse =
+        from_str(&wrap_in_string(content)).chain_err(|| "Failed to parse XML-RPC response.")?;
     data.into()
 }
 

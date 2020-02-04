@@ -1,5 +1,7 @@
 # Conversion specification between XML-RPC and Serde
 
+This is a fork of: https://github.com/adnanademovic/xml-rpc-rs/tree/master/src/xmlfmt. The code is extracted from the transport layer to enable a custom hyper based implementation.
+
 Serde's [documentation](https://serde.rs/data-model.html) states the data formats it uses to convert data to Rust types. XML-RPC has a very limited set of types, so there will be a lot of aliasing. Here are the connections:
 
 * bool - boolean
@@ -14,3 +16,4 @@ Serde's [documentation](https://serde.rs/data-model.html) states the data format
 * `newtype_variant`, `unit_variant`, `tuple_variant`, `struct_variant` - `struct` with one element, whose name is the name of the variant. The content corresponds to the fitting real content
 * `seq`, `tuple`, `tuple_struct` - `array`
 * `map`, `struct` - `struct`
+

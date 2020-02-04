@@ -1,5 +1,5 @@
-mod slave;
 mod args;
+mod slave;
 
 pub use args::NodeArgs;
 
@@ -11,11 +11,8 @@ pub struct Node {
 impl Node {
     pub async fn new(args: NodeArgs) -> Result<Self, failure::Error> {
         // Construct a slave XMLRPC server
-        let slave = slave::Slave::new(&args)
-            .await?;
+        let slave = slave::Slave::new(&args).await?;
 
-        Ok(Node {
-            _slave: slave
-        })
+        Ok(Node { _slave: slave })
     }
 }
