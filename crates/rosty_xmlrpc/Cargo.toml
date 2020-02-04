@@ -8,4 +8,5 @@ edition = "2018"
 failure = "0.1"
 hyper="0.13"
 futures = "0.3"
+bytes = "0.5"
 xmlrpc_fmt = { path="../rosty_xmlrpc_fmt", package ="rosty_xmlrpc_fmt" }

@@ -4,6 +4,11 @@ mod slave;
 pub use args::NodeArgs;
 
 /// Represents a ROS node.
+///
+/// A ROS node has several APIs:
+///  * A slave API. The slave API is an XMLRPC API that has two roles: receiving callbacks from the
+///    master, and negotiating connections with other nodes.
+///  * A topic transport protocol
 pub struct Node {
     _slave: slave::Slave,
 }
