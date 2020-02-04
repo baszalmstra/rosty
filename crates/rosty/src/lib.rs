@@ -1,6 +1,6 @@
 use crossbeam::sync::ShardedLock;
 use once_cell::sync::Lazy;
-use failure::{bail, err_msg};
+use failure::{bail};
 
 mod node;
 
@@ -10,18 +10,18 @@ use node::{Node, NodeArgs};
 static NODE: Lazy<ShardedLock<Option<Node>>> = Lazy::new(|| ShardedLock::new(None));
 
 /// Initializes the ROS node
-pub fn init<S:AsRef<str>>(default_name: S) -> Result<(), failure::Error> {
-    init_with_args(NodeArgs::new(default_name))
+pub async fn init<S:AsRef<str>>(default_name: S) -> Result<(), failure::Error> {
+    init_with_args(NodeArgs::new(default_name)).await
 }
 
 /// Initializes the ROS node
-pub fn init_with_args(args: NodeArgs) -> Result<(), failure::Error> {
+pub async fn init_with_args(args: NodeArgs) -> Result<(), failure::Error> {
     let mut singleton = NODE.write().expect("Could not acquire write lock to singleton ROS node");
     if singleton.is_some() {
         bail!("There can only be a single ROS node");
     }
 
-    let node = Node::new(args);
+    let node = Node::new(args).await?;
     *singleton = Some(node);
 
     Ok(())

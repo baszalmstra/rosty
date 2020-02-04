@@ -5,11 +5,17 @@ pub use args::NodeArgs;
 
 /// Represents a ROS node.
 pub struct Node {
-    //slave: slave::Slave,
+    _slave: slave::Slave,
 }
 
 impl Node {
-    pub fn new(args: NodeArgs) -> Self {
-        Node {}
+    pub async fn new(args: NodeArgs) -> Result<Self, failure::Error> {
+        // Construct a slave XMLRPC server
+        let slave = slave::Slave::new(&args)
+            .await?;
+
+        Ok(Node {
+            _slave: slave
+        })
     }
 }

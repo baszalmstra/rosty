@@ -1,5 +1,4 @@
 use std::env;
-use std::borrow::Cow;
 
 /// A builder helper class to construct a new ROS `Node`
 #[derive(Debug, Clone, Eq, PartialEq)]
