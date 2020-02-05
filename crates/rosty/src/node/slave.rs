@@ -14,9 +14,7 @@ fn unwrap_array_case(params: Params) -> Params {
 
 /// Slave API for a ROS node. The slave API is an XMLRPC API that has two roles: receiving callbacks
 /// from the master, and negotiating connections with other nodes.
-pub struct Slave {
-    _server: xmlrpc::Server,
-}
+pub struct Slave {}
 
 impl Slave {
     /// Constructs a new slave for a node with the given arguments.
@@ -50,8 +48,9 @@ impl Slave {
             async { Ok(Value::Int(getpid().into())) }
         });
 
+        let rpc_shutdown_signal = shutdown_signal.clone();
         server.register_value("shutdown", "Shutdown", move |args| {
-            let shutdown_signal = shutdown_signal.clone();
+            let shutdown_signal = rpc_shutdown_signal.clone();
             async move {
                 let mut args = unwrap_array_case(args).into_iter();
                 let _caller_id = args
@@ -67,8 +66,9 @@ impl Slave {
             }
         });
 
-        let server = server.bind(&addr).await?;
+        // Start listening for server requests
+        tokio::spawn(server.bind(&addr, shutdown_signal.clone())?);
 
-        Ok(Slave { _server: server })
+        Ok(Slave {})
     }
 }

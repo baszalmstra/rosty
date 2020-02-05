@@ -30,7 +30,8 @@ fn client_server() {
         server.register_simple_async("echo", echo);
         server.register_simple_async("double", double);
 
-        let _server = server.bind(&addr).await.unwrap();
+        let server_shutdown_signal = futures::future::pending();
+        tokio::spawn(server.bind(&addr, server_shutdown_signal).unwrap());
 
         let mut client = Client::new();
         let req = TestStruct {

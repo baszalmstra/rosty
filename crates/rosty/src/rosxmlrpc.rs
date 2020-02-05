@@ -12,7 +12,7 @@
 mod response_info;
 mod server;
 
-pub use server::{Server, ServerBuilder};
+pub use server::ServerBuilder;
 pub use xmlrpc::{Params, Value};
 
 pub type Response<T> = Result<T, ResponseError>;

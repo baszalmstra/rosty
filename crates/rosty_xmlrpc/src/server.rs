@@ -2,7 +2,7 @@ use crate::{from_params, into_params, Params};
 use bytes::buf::ext::BufExt;
 use failure::Error;
 pub use failure::SyncFailure;
-use futures::future;
+use futures::{future, TryFutureExt};
 use hyper::{http, service::Service, Body, Request};
 use std::future::Future;
 use std::pin::Pin;
@@ -136,14 +136,21 @@ impl ServerBuilder {
     }
 
     /// Constructs the actual `Server` by creating a binding to the specific `SocketAddr`.
-    pub async fn bind(self, addr: &SocketAddr) -> Result<Server, failure::Error> {
+    pub fn bind<F>(
+        self,
+        addr: &SocketAddr,
+        shutdown_signal: F,
+    ) -> Result<impl Future<Output = Result<(), failure::Error>>, failure::Error>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
         let service = ConnectionService {
             handlers: Arc::new(self.handlers),
         };
-        let server = hyper::Server::try_bind(addr)?.serve(service);
-        tokio::spawn(server);
-        println!("Started");
-        Ok(Server {})
+        Ok(hyper::Server::try_bind(addr)?
+            .serve(service)
+            .with_graceful_shutdown(shutdown_signal)
+            .map_err(Into::into))
     }
 }
 
@@ -221,9 +228,4 @@ impl<T> Service<T> for ConnectionService {
     fn call(&mut self, _: T) -> Self::Future {
         future::ok(HandlerService(self.handlers.clone()))
     }
-}
-
-/// Server that manages XMLRPC connection requests
-pub struct Server {
-    //_server: hyper::Server<AddrIncoming, ConnectionService>,
 }

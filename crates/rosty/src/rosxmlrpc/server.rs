@@ -3,7 +3,6 @@ use crate::rosxmlrpc::response_info::ResponseInfo;
 use futures::FutureExt;
 use std::future::Future;
 use std::net::SocketAddr;
-pub use xmlrpc::Server;
 
 /// Wraps an `xmlrpc::ServerBuilder` to hide the details of the ROS XMLRPC protocol.
 pub struct ServerBuilder {
@@ -30,7 +29,14 @@ impl ServerBuilder {
     }
 
     /// Constructs the actual `Server` by creating a binding to the specific `SocketAddr`.
-    pub async fn bind(self, addr: &SocketAddr) -> Result<Server, failure::Error> {
-        self.inner.bind(addr).await
+    pub fn bind<F>(
+        self,
+        addr: &SocketAddr,
+        shutdown_signal: F,
+    ) -> Result<impl Future<Output = Result<(), failure::Error>>, failure::Error>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        self.inner.bind(addr, shutdown_signal)
     }
 }
