@@ -1,3 +1,4 @@
+use crate::Params;
 use bytes::buf::ext::BufExt;
 use failure::Error;
 use futures::future;
@@ -68,6 +69,7 @@ impl ServerBuilder {
         ServerBuilder::default()
     }
 
+    /// Registers a XLMRPC call handler
     pub fn register_value<K, T, R>(&mut self, name: K, handler: T)
     where
         K: Into<String>,
@@ -78,46 +80,12 @@ impl ServerBuilder {
             .handlers
             .insert(name.into(), Box::new(move |req| Box::new(handler(req))));
     }
-    //
-    //    pub fn register<'a, K, Treq, Tres, Thandler, Tef, Tdf>(
-    //        &mut self,
-    //        name: K,
-    //        handler: Thandler,
-    //        encode_fail: Tef,
-    //        decode_fail: Tdf,
-    //    ) where
-    //        K: Into<String>,
-    //        Treq: Deserialize<'a>,
-    //        Tres: Serialize,
-    //        Thandler: Fn(Treq) -> std::result::Result<Tres, Fault> + Send + Sync + 'static,
-    //        Tef: Fn(&failure::Error) -> Response + Send + Sync + 'static,
-    //        Tdf: Fn(&failure::Error) -> Response + Send + Sync + 'static,
-    //    {
-    //        self.register_value(name, move |req| {
-    //            let params = match from_params(req) {
-    //                Ok(v) => v,
-    //                Err(err) => return decode_fail(&err),
-    //            };
-    //            let response = handler(params)?;
-    //            into_params(&response).or_else(|v| encode_fail(&v))
-    //        });
-    //    }
-    //
-    //    pub fn register_simple<'a, K, Treq, Tres, Thandler>(&mut self, name: K, handler: Thandler)
-    //        where
-    //            K: Into<String>,
-    //            Treq: Deserialize<'a>,
-    //            Tres: Serialize,
-    //            Thandler: Fn(Treq) -> std::result::Result<Tres, Fault> + Send + Sync + 'static,
-    //    {
-    //        self.register(name, handler, on_encode_fail, on_decode_fail);
-    //    }
 
     /// Sets the handler that is called if none of the other handlers match.
     pub fn set_on_missing<T, R>(&mut self, handler: T)
     where
         R: Future<Output = Response> + Send + 'static,
-        T: (Fn(Vec<Value>) -> R) + Send + Sync + 'static,
+        T: (Fn(Params) -> R) + Send + Sync + 'static,
     {
         self.handlers.on_missing_method = Box::new(move |req| Box::new(handler(req)));
     }
