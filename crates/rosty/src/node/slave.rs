@@ -1,7 +1,8 @@
 use async_std::net::ToSocketAddrs;
+use nix::unistd::getpid;
 
 use super::NodeArgs;
-use xmlrpc::Value;
+use crate::rosxmlrpc::{ServerBuilder, Value};
 
 /// Slave API for a ROS node. The slave API is an XMLRPC API that has two roles: receiving callbacks
 /// from the master, and negotiating connections with other nodes.
@@ -26,12 +27,16 @@ impl Slave {
             })?;
 
         // Construct the server and bind it to the address
-        let mut server = xmlrpc::ServerBuilder::new();
+        let mut server = ServerBuilder::new();
 
         let master_uri = args.master_uri.clone();
-        server.register_value("getMasterUri", move |_args| {
+        server.register_value("getMasterUri", "Master URI", move |_args| {
             let master_uri = master_uri.clone();
-            async { Ok(vec![Value::String(master_uri)]) }
+            async { Ok(Value::String(master_uri)) }
+        });
+
+        server.register_value("getPid", "PID", |_args| {
+            async { Ok(Value::Int(getpid().into())) }
         });
 
         let server = server.bind(&addr).await?;

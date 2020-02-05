@@ -2,7 +2,10 @@ use crossbeam::sync::ShardedLock;
 use failure::bail;
 use once_cell::sync::Lazy;
 
+#[macro_use] extern crate failure;
+
 mod node;
+mod rosxmlrpc;
 
 use node::{Node, NodeArgs};
 
