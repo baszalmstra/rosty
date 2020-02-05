@@ -1,8 +1,8 @@
 use crate::server::Fault;
 use bytes::buf::BufExt;
 use bytes::Buf;
-use hyper::client::{HttpConnector, ResponseFuture};
-use hyper::{self, Body, Client as HyperClient, Method, Request, Response};
+use hyper::client::HttpConnector;
+use hyper::{self, Body, Client as HyperClient, Method, Request};
 use xmlrpc_fmt::{from_params, into_params, parse, Call, Params};
 use xmlrpc_fmt::{Deserialize, Serialize};
 
