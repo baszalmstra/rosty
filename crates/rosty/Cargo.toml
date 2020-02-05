@@ -15,4 +15,5 @@ crossbeam = "0.7"
 once_cell = "1.3"
 async-std = "1.5"
 futures = "0.3"
+log = "0.4"
 xmlrpc = {path="../rosty_xmlrpc", package="rosty_xmlrpc"}

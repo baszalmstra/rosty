@@ -1,7 +1,9 @@
 mod args;
 mod slave;
+mod shutdown_token;
 
 pub use args::NodeArgs;
+use shutdown_token::{ShutdownToken};
 
 /// Represents a ROS node.
 ///
@@ -11,13 +13,16 @@ pub use args::NodeArgs;
 ///  * A topic transport protocol
 pub struct Node {
     _slave: slave::Slave,
+    pub shutdown_token: ShutdownToken
 }
 
 impl Node {
     pub async fn new(args: NodeArgs) -> Result<Self, failure::Error> {
-        // Construct a slave XMLRPC server
-        let slave = slave::Slave::new(&args).await?;
+        let shutdown_token = ShutdownToken::default();
 
-        Ok(Node { _slave: slave })
+        // Construct a slave XMLRPC server
+        let slave = slave::Slave::new(&args, shutdown_token.clone()).await?;
+
+        Ok(Node { _slave: slave, shutdown_token })
     }
 }
