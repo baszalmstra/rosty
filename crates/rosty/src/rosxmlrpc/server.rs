@@ -24,11 +24,8 @@ impl ServerBuilder {
         R: Future<Output = Response<xmlrpc::Value>> + Send + 'static,
         T: (Fn(xmlrpc::Params) -> R) + Send + Sync + 'static,
     {
-        self.inner.register_value(name, move |args| {
-            handler(args)
-                .map(move |r| {
-                    ResponseInfo::from_response(r, msg).into()
-                })
+        self.inner.register_value_async(name, move |args| {
+            handler(args).map(move |r| ResponseInfo::from_response(r, msg).into())
         });
     }
 

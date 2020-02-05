@@ -1,4 +1,4 @@
-use crate::server::Fault;
+use crate::server::{Fault, SyncFailure};
 use bytes::buf::BufExt;
 use bytes::Buf;
 use hyper::client::HttpConnector;
@@ -7,15 +7,21 @@ use xmlrpc_fmt::{from_params, into_params, parse, Call, Params};
 use xmlrpc_fmt::{Deserialize, Serialize};
 
 /// An XML-Rpc client
-struct Client {
+pub struct Client {
     hyper_client: HyperClient<HttpConnector>,
 }
 
-impl Client {
-    pub fn new() -> Client {
+impl Default for Client {
+    fn default() -> Self {
         Client {
-            hyper_client: HyperClient::new(),
+            hyper_client: HyperClient::default(),
         }
+    }
+}
+
+impl Client {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Internal call for call with params
@@ -35,7 +41,7 @@ impl Client {
 
         // Build the actual request
         let req = Request::builder()
-            .method(Method::GET)
+            .method(Method::POST)
             .uri(uri)
             .header("content-type", "text/xml")
             .body(Body::from(body_str))
@@ -58,8 +64,7 @@ impl Client {
         TParams: Serialize,
         TResponse: Deserialize<'a>,
     {
-        let into_params_result =
-            into_params(&params).map_err(|e| failure::format_err!("{}", e.description()))?;
+        let into_params_result = into_params(&params).map_err(SyncFailure::new)?;
         let response = self.call_with_params(uri, name, into_params_result).await?;
 
         let parsed_response = parse::response(response.reader());
@@ -67,7 +72,8 @@ impl Client {
             // Request was Ok
             Ok(Ok(v)) => from_params(v)
                 .map(Ok)
-                .map_err(|e| failure::format_err!("{}", e.description()))?,
+                .map_err(SyncFailure::new)
+                .map_err(Into::into),
             Ok(Err(e)) => Ok(Err(e)),
             Err(v) => Err(failure::format_err!("{}", v.description())),
         }

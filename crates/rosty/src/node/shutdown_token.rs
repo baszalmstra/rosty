@@ -1,8 +1,8 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc};
-use std::future::Future;
 use futures::task::AtomicWaker;
+use std::future::Future;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 /// A token that can be used to signal that we want to shutdown. The token can be cloned so it can
@@ -19,7 +19,7 @@ impl Default for ShutdownToken {
 impl ShutdownToken {
     /// Returns true if the token is indicating a shutdown
     pub fn is_awaiting_shutdown(&self) -> bool {
-        (self.0).0.load(Ordering::Relaxed )
+        (self.0).0.load(Ordering::Relaxed)
     }
 
     /// Tell the token to go to shutdown state

@@ -10,3 +10,9 @@ hyper="0.13"
 futures = "0.3"
 bytes = "0.5"
 xmlrpc_fmt = { path="../rosty_xmlrpc_fmt", package ="rosty_xmlrpc_fmt" }
+tokio = "0.2"
+
+[dev-dependencies]
+tokio-test ="0.2"
+serde_derive = "1.0"
+serde = "1.0"

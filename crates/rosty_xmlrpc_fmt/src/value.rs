@@ -33,7 +33,7 @@ impl Value {
 
 pub type Params = Vec<Value>;
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Fault {
     #[serde(rename = "faultCode")]
     pub code: i32,

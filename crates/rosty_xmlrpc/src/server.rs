@@ -1,8 +1,9 @@
-use crate::Params;
+use crate::{from_params, into_params, Params};
 use bytes::buf::ext::BufExt;
 use failure::Error;
+pub use failure::SyncFailure;
 use futures::future;
-use hyper::{http, server::conn::AddrIncoming, service::Service, Body, Request};
+use hyper::{http, service::Service, Body, Request};
 use std::future::Future;
 use std::pin::Pin;
 use std::{
@@ -11,7 +12,7 @@ use std::{
     sync::Arc,
     task::{Context, Poll},
 };
-pub use xmlrpc_fmt::{value::ToXml, Fault, Response, Value};
+pub use xmlrpc_fmt::{value::ToXml, Deserialize, Fault, Response, Serialize, Value};
 
 type Handler = Box<dyn (Fn(Vec<Value>) -> Box<dyn Future<Output = Response> + Send>) + Sync + Send>;
 type HandlerMap = HashMap<String, Handler>;
@@ -69,8 +70,8 @@ impl ServerBuilder {
         ServerBuilder::default()
     }
 
-    /// Registers a XLMRPC call handler
-    pub fn register_value<K, T, R>(&mut self, name: K, handler: T)
+    /// Registers an async XLMRPC call handler that is passed raw xmlrpc Values.
+    pub fn register_value_async<K, T, R>(&mut self, name: K, handler: T)
     where
         K: Into<String>,
         R: Future<Output = Response> + Send + 'static,
@@ -79,6 +80,50 @@ impl ServerBuilder {
         self.handlers
             .handlers
             .insert(name.into(), Box::new(move |req| Box::new(handler(req))));
+    }
+
+    pub fn register_async<'a, K, Treq, Tres, Thandler, Tef, Tdf, R>(
+        &mut self,
+        name: K,
+        handler: Thandler,
+        encode_fail: Tef,
+        decode_fail: Tdf,
+    ) where
+        K: Into<String>,
+        Treq: Deserialize<'a> + Send + Sync,
+        Tres: Serialize,
+        R: Future<Output = std::result::Result<Tres, Fault>> + Send + 'static,
+        Thandler: (Fn(Treq) -> R) + Send + Sync + Copy + 'static,
+        Tef: (Fn(&Error) -> Response) + Send + Sync + Copy + 'static,
+        Tdf: (Fn(&Error) -> Response) + Send + Sync + Copy + 'static,
+    {
+        self.register_value_async(name, move |req| {
+            async move {
+                let params = match from_params(req) {
+                    Ok(v) => v,
+                    Err(err) => {
+                        let err = SyncFailure::new(err);
+                        return decode_fail(&err.into());
+                    }
+                };
+                let response = handler(params).await?;
+                into_params(&response).or_else(|v| encode_fail(&SyncFailure::new(v).into()))
+            }
+        });
+    }
+
+    pub fn register_simple_async<'a, K, Treq, Tres, Thandler, R>(
+        &mut self,
+        name: K,
+        handler: Thandler,
+    ) where
+        K: Into<String>,
+        Treq: Deserialize<'a> + Send + Sync,
+        Tres: Serialize,
+        R: Future<Output = std::result::Result<Tres, Fault>> + Send + 'static,
+        Thandler: Fn(Treq) -> R + Send + Sync + Copy + 'static,
+    {
+        self.register_async(name, handler, on_encode_fail, on_decode_fail);
     }
 
     /// Sets the handler that is called if none of the other handlers match.
@@ -96,7 +141,9 @@ impl ServerBuilder {
             handlers: Arc::new(self.handlers),
         };
         let server = hyper::Server::try_bind(addr)?.serve(service);
-        Ok(Server { _server: server })
+        tokio::spawn(server);
+        println!("Started");
+        Ok(Server {})
     }
 }
 
@@ -104,10 +151,13 @@ impl ServerBuilder {
 #[derive(Clone)]
 struct HandlerService(Arc<ServerHandlers>);
 
+type ServerHandlerFuture =
+    Pin<Box<dyn Future<Output = Result<http::Response<Body>, hyper::Error>> + Send>>;
+
 impl Service<Request<Body>> for HandlerService {
     type Response = http::Response<Body>;
     type Error = hyper::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+    type Future = ServerHandlerFuture;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
@@ -175,5 +225,5 @@ impl<T> Service<T> for ConnectionService {
 
 /// Server that manages XMLRPC connection requests
 pub struct Server {
-    _server: hyper::Server<AddrIncoming, ConnectionService>,
+    //_server: hyper::Server<AddrIncoming, ConnectionService>,
 }

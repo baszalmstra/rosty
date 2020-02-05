@@ -2,8 +2,8 @@ use async_std::net::ToSocketAddrs;
 use nix::unistd::getpid;
 
 use super::NodeArgs;
-use crate::rosxmlrpc::{ServerBuilder, Value, ResponseError, Params};
 use crate::node::shutdown_token::ShutdownToken;
+use crate::rosxmlrpc::{Params, ResponseError, ServerBuilder, Value};
 
 fn unwrap_array_case(params: Params) -> Params {
     if let Some(&Value::Array(ref items)) = params.get(0) {
@@ -20,7 +20,10 @@ pub struct Slave {
 
 impl Slave {
     /// Constructs a new slave for a node with the given arguments.
-    pub async fn new(args: &NodeArgs, shutdown_signal: ShutdownToken) -> Result<Slave, failure::Error> {
+    pub async fn new(
+        args: &NodeArgs,
+        shutdown_signal: ShutdownToken,
+    ) -> Result<Slave, failure::Error> {
         // Resolve the hostname to an address. 0 for the port indicates that the slave can bind to
         // any port that is available
         let addr = format!("{}:{}", args.hostname, 0)

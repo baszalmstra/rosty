@@ -1,5 +1,5 @@
 mod util;
-use futures::{pin_mut, pending, future::{maybe_done}};
+use futures::{future::maybe_done, pending, pin_mut};
 
 #[tokio::test]
 async fn shutdown_token() {

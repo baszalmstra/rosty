@@ -9,8 +9,8 @@
 //!
 //! For more information read: https://wiki.ros.org/ROS/Master_Slave_APIs
 
-mod server;
 mod response_info;
+mod server;
 
 pub use server::{Server, ServerBuilder};
 pub use xmlrpc::{Params, Value};

@@ -5,14 +5,16 @@ pub use xmlrpc::Value;
 pub struct ResponseInfo {
     pub code: i32,
     pub message: String,
-    pub data: Value
+    pub data: Value,
 }
 
 impl ResponseInfo {
     /// Construct a new `ResponseInfo` from individual components
     pub fn new(code: i32, message: String, data: Value) -> Self {
         Self {
-            code, message, data
+            code,
+            message,
+            data,
         }
     }
 

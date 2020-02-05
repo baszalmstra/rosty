@@ -2,8 +2,10 @@ use crossbeam::sync::ShardedLock;
 use failure::bail;
 use once_cell::sync::Lazy;
 
-#[macro_use] extern crate failure;
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate failure;
+#[macro_use]
+extern crate log;
 
 mod node;
 mod rosxmlrpc;
@@ -42,10 +44,11 @@ pub fn is_initialized() -> bool {
 
 /// Returns the singleton node
 macro_rules! node {
-    () => { NODE.read()
-        .expect("Could not acquire read lock to singleton ROS node")
-        .as_ref()
-        .expect("ROS Node has not yet been initialized")
+    () => {
+        NODE.read()
+            .expect("Could not acquire read lock to singleton ROS node")
+            .as_ref()
+            .expect("ROS Node has not yet been initialized")
     };
 }
 
