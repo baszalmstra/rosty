@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+pub use serde::{Deserialize, Serialize};
 
 #[macro_use]
 extern crate serde_derive;
