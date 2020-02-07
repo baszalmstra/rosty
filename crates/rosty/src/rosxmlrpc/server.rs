@@ -33,7 +33,7 @@ impl ServerBuilder {
         self,
         addr: &SocketAddr,
         shutdown_signal: F,
-    ) -> Result<impl Future<Output = Result<(), failure::Error>>, failure::Error>
+    ) -> Result<(impl Future<Output = Result<(), failure::Error>>, SocketAddr), failure::Error>
     where
         F: Future<Output = ()> + Send + 'static,
     {

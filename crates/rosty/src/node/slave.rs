@@ -1,9 +1,10 @@
 use async_std::net::ToSocketAddrs;
 use nix::unistd::getpid;
 
-use super::NodeArgs;
 use crate::node::shutdown_token::ShutdownToken;
 use crate::rosxmlrpc::{Params, ResponseError, ServerBuilder, Value};
+use futures::future::TryFutureExt;
+use std::future::Future;
 
 fn unwrap_array_case(params: Params) -> Params {
     if let Some(&Value::Array(ref items)) = params.get(0) {
@@ -14,31 +15,38 @@ fn unwrap_array_case(params: Params) -> Params {
 
 /// Slave API for a ROS node. The slave API is an XMLRPC API that has two roles: receiving callbacks
 /// from the master, and negotiating connections with other nodes.
-pub struct Slave {}
+pub struct Slave {
+    name: String,
+    uri: String,
+}
 
 impl Slave {
     /// Constructs a new slave for a node with the given arguments.
     pub async fn new(
-        args: &NodeArgs,
+        master_uri: &str,
+        hostname: &str,
+        bind_address: &str,
+        port: u16,
+        name: &str,
         shutdown_signal: ShutdownToken,
-    ) -> Result<Slave, failure::Error> {
+    ) -> Result<(Slave, impl Future<Output=Result<(), failure::Error>>), failure::Error> {
         // Resolve the hostname to an address. 0 for the port indicates that the slave can bind to
         // any port that is available
-        let addr = format!("{}:{}", args.hostname, 0)
+        let addr = format!("{}:{}", bind_address, port)
             .to_socket_addrs()
             .await?
             .next()
             .ok_or_else(|| {
                 failure::format_err!(
-                    "Could not resolve '{}' to a valid socket address",
-                    args.hostname
+                    "Could not resolve '{}:{}' to a valid socket address",
+                    bind_address, port
                 )
             })?;
 
         // Construct the server and bind it to the address
         let mut server = ServerBuilder::new();
 
-        let master_uri = args.master_uri.clone();
+        let master_uri = master_uri.to_owned();
         server.register_value("getMasterUri", "Master URI", move |_args| {
             let master_uri = master_uri.clone();
             async { Ok(Value::String(master_uri)) }
@@ -67,8 +75,17 @@ impl Slave {
         });
 
         // Start listening for server requests
-        tokio::spawn(server.bind(&addr, shutdown_signal.clone())?);
+        let (server, addr) = server.bind(&addr, shutdown_signal.clone())?;
+        let server = tokio::spawn(server).unwrap_or_else(|e| Err(e.into()));
 
-        Ok(Slave {})
+        Ok((Slave {
+            name: name.to_owned(),
+            uri: format!("http://{}:{}/", hostname, addr.port()),
+        }, server))
+    }
+
+    /// Returns the listen URI of the slave
+    pub fn uri(&self) -> &str {
+        &self.uri
     }
 }

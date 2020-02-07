@@ -16,4 +16,8 @@ once_cell = "1.3"
 async-std = "1.5"
 futures = "0.3"
 log = "0.4"
+serde = "1.0"
 xmlrpc = {path="../rosty_xmlrpc", package="rosty_xmlrpc"}
+
+[dev-dependencies]
+tokio-test = "0.2"

@@ -53,7 +53,7 @@ macro_rules! node {
 }
 
 pub async fn run() {
-    node!().shutdown_token.clone().await
+    node!().run().await
 }
 
 pub fn shutdown() {

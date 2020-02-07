@@ -140,17 +140,19 @@ impl ServerBuilder {
         self,
         addr: &SocketAddr,
         shutdown_signal: F,
-    ) -> Result<impl Future<Output = Result<(), failure::Error>>, failure::Error>
+    ) -> Result<(impl Future<Output = Result<(), failure::Error>>, SocketAddr), failure::Error>
     where
         F: Future<Output = ()> + Send + 'static,
     {
         let service = ConnectionService {
             handlers: Arc::new(self.handlers),
         };
-        Ok(hyper::Server::try_bind(addr)?
-            .serve(service)
+        let server = hyper::Server::try_bind(addr)?
+            .serve(service);
+        let addr = server.local_addr();
+        Ok((server
             .with_graceful_shutdown(shutdown_signal)
-            .map_err(Into::into))
+            .map_err(Into::into), addr))
     }
 }
 

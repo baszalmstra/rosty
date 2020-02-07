@@ -31,7 +31,7 @@ fn client_server() {
         server.register_simple_async("double", double);
 
         let server_shutdown_signal = futures::future::pending();
-        tokio::spawn(server.bind(&addr, server_shutdown_signal).unwrap());
+        tokio::spawn(server.bind(&addr, server_shutdown_signal).unwrap().0);
 
         let mut client = Client::new();
         let req = TestStruct {

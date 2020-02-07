@@ -11,7 +11,9 @@
 
 mod response_info;
 mod server;
+mod client;
 
+pub use client::Client;
 pub use server::ServerBuilder;
 pub use xmlrpc::{Params, Value};
 

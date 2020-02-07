@@ -1,9 +1,15 @@
 mod args;
 mod shutdown_token;
 mod slave;
+mod master;
 
 pub use args::NodeArgs;
 use shutdown_token::ShutdownToken;
+use master::Master;
+use slave::Slave;
+
+use tokio::sync::Mutex;
+use std::sync::Arc;
 
 /// Represents a ROS node.
 ///
@@ -12,7 +18,12 @@ use shutdown_token::ShutdownToken;
 ///    master, and negotiating connections with other nodes.
 ///  * A topic transport protocol
 pub struct Node {
-    _slave: slave::Slave,
+    slave: Slave,
+    master: Master,
+    hostname: String,
+    bind_address: String,
+    name: String,
+    result: Arc<Mutex<Option<Result<(), failure::Error>>>>,
     pub shutdown_token: ShutdownToken,
 }
 
@@ -20,12 +31,82 @@ impl Node {
     pub async fn new(args: NodeArgs) -> Result<Self, failure::Error> {
         let shutdown_token = ShutdownToken::default();
 
+        // Bind to all addresses if the hostname is not localhost
+        let bind_host = {
+            if args.hostname == "localhost" || args.hostname.starts_with("127.") {
+                &args.hostname
+            } else {
+                "0.0.0.0"
+            }
+        };
+
+        let namespace = args.namespace.trim_end_matches('/');
+        let name = &args.name;
+        if name.contains('/') {
+            bail!("Illegal character in node name '{}' - limited to letters, numbers and underscores", name)
+        }
+        let name = format!("{}/{}", namespace, name);
+
         // Construct a slave XMLRPC server
-        let slave = slave::Slave::new(&args, shutdown_token.clone()).await?;
+        let (slave, slave_future) = Slave::new(
+            &args.master_uri,
+            &args.hostname,
+            &bind_host,
+            0,
+            &name,
+            shutdown_token.clone())
+            .await?;
+
+        // Construct the master API client
+        let master = Master::new(&args.master_uri, &name, &slave.uri())?;
+        let result_mutex = Arc::new(Mutex::new(None));
+
+        let join_handle_mutex = result_mutex.clone();
+        let join_handle = tokio::spawn(async move {
+            let mut mutex_guard = join_handle_mutex.lock().await;
+            *mutex_guard = Some(tokio::try_join!(
+                slave_future
+            ).map(|_| ()))
+        });
 
         Ok(Node {
-            _slave: slave,
+            slave,
+            master,
+            hostname: args.hostname.to_owned(),
+            bind_address: bind_host.to_owned(),
+            name,
+            result: result_mutex,
             shutdown_token,
         })
+    }
+
+    /// Returns the URI of this node
+    pub fn uri(&self) -> &str {
+        self.slave.uri()
+    }
+
+    /// Returns the name of this node
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Returns the hostname of the node
+    pub fn hostname(&self) -> &str {
+        &self.hostname
+    }
+
+    /// Returns the bind address of the node
+    pub fn bind_address(&self) -> &str {
+        &self.bind_address
+    }
+
+    /// Returns a future that is resolved when the node shuts down
+    pub async fn run(&self) {
+        loop {
+            let lock = self.result.lock().await;
+            if lock.is_some() {
+                return
+            }
+        }
     }
 }

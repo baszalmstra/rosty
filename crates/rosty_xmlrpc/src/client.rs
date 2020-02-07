@@ -1,10 +1,12 @@
 use crate::server::{Fault, SyncFailure};
 use bytes::buf::BufExt;
-use bytes::Buf;
 use hyper::client::HttpConnector;
 use hyper::{self, Body, Client as HyperClient, Method, Request};
 use xmlrpc_fmt::{from_params, into_params, parse, Call, Params};
 use xmlrpc_fmt::{Deserialize, Serialize};
+
+use crate::Response;
+pub use hyper::Uri;
 
 /// An XML-Rpc client
 pub struct Client {
@@ -25,12 +27,12 @@ impl Client {
     }
 
     /// Internal call for call with params
-    async fn call_with_params<TKey: Into<String>>(
+    pub async fn call_with_params<TKey: Into<String>>(
         &mut self,
         uri: &hyper::Uri,
         name: TKey,
         params: Params,
-    ) -> Result<impl Buf, hyper::Error> {
+    ) -> Result<Response, failure::Error> {
         use xmlrpc_fmt::value::ToXml;
         // Convert the body to a xml-rpc call
         let body_str = Call {
@@ -49,7 +51,11 @@ impl Client {
 
         // Do the actual request
         let response = self.hyper_client.request(req).await?;
-        hyper::body::aggregate(response).await
+        let response = hyper::body::aggregate(response).await?;
+
+        parse::response(response.reader())
+            .map_err(SyncFailure::new)
+            .map_err(Into::into)
     }
 
     /// Do a an xml-rpc call for a number of parameters
@@ -65,9 +71,7 @@ impl Client {
         TResponse: Deserialize<'a>,
     {
         let into_params_result = into_params(&params).map_err(SyncFailure::new)?;
-        let response = self.call_with_params(uri, name, into_params_result).await?;
-
-        let parsed_response = parse::response(response.reader());
+        let parsed_response = self.call_with_params(uri, name, into_params_result).await;
         match parsed_response {
             // Request was Ok
             Ok(Ok(v)) => from_params(v)
@@ -75,7 +79,31 @@ impl Client {
                 .map_err(SyncFailure::new)
                 .map_err(Into::into),
             Ok(Err(e)) => Ok(Err(e)),
-            Err(v) => Err(failure::format_err!("{}", v.description())),
+            Err(v) => Err(v),
         }
     }
+}
+
+pub async fn call_with_params<Tkey>(
+    uri: &Uri,
+    name: Tkey,
+    params: Params,
+) -> Result<Response, failure::Error>
+where
+    Tkey: Into<String>,
+{
+    Client::new().call_with_params(uri, name, params).await
+}
+
+pub async fn call<'a, Tkey, Treq, Tres>(
+    uri: &Uri,
+    name: Tkey,
+    req: Treq,
+) -> Result<std::result::Result<Tres, Fault>, failure::Error>
+where
+    Tkey: Into<String>,
+    Treq: Serialize,
+    Tres: Deserialize<'a>,
+{
+    Client::new().call(uri, name, req).await
 }
