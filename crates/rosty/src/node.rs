@@ -1,15 +1,20 @@
 mod args;
+mod master;
 mod shutdown_token;
 mod slave;
-mod master;
+mod topic;
 
 pub use args::NodeArgs;
+use master::{Master};
 use shutdown_token::ShutdownToken;
-use master::Master;
 use slave::Slave;
 
-use tokio::sync::Mutex;
 use std::sync::Arc;
+use tokio::sync::Mutex;
+
+use crate::rosxmlrpc::Response;
+
+pub use master::Topic;
 
 /// Represents a ROS node.
 ///
@@ -43,7 +48,10 @@ impl Node {
         let namespace = args.namespace.trim_end_matches('/');
         let name = &args.name;
         if name.contains('/') {
-            bail!("Illegal character in node name '{}' - limited to letters, numbers and underscores", name)
+            bail!(
+                "Illegal character in node name '{}' - limited to letters, numbers and underscores",
+                name
+            )
         }
         let name = format!("{}/{}", namespace, name);
 
@@ -54,19 +62,18 @@ impl Node {
             &bind_host,
             0,
             &name,
-            shutdown_token.clone())
-            .await?;
+            shutdown_token.clone(),
+        )
+        .await?;
 
         // Construct the master API client
         let master = Master::new(&args.master_uri, &name, &slave.uri())?;
         let result_mutex = Arc::new(Mutex::new(None));
 
         let join_handle_mutex = result_mutex.clone();
-        let join_handle = tokio::spawn(async move {
+        tokio::spawn(async move {
             let mut mutex_guard = join_handle_mutex.lock().await;
-            *mutex_guard = Some(tokio::try_join!(
-                slave_future
-            ).map(|_| ()))
+            *mutex_guard = Some(tokio::try_join!(slave_future).map(|_| ()))
         });
 
         Ok(Node {
@@ -105,8 +112,19 @@ impl Node {
         loop {
             let lock = self.result.lock().await;
             if lock.is_some() {
-                return
+                return;
             }
         }
     }
+
+    /// Returns a list of all topics
+    pub async fn topics(&self) -> Response<Vec<Topic>> {
+        self.master
+            .get_topic_types()
+            .await
+    }
+
+//    pub async fn get_param(&self, key: &str) -> Response<Value> {
+//        self.master.
+//    }
 }

@@ -1,9 +1,11 @@
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
+use std::collections::HashSet;
 use std::process::{Child, Command, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
 use std::{env, io};
+use std::future::Future;
 
 /// Enable RAII usage of a ros process. When the process is dropped it's send the SIGINT signal to
 /// properly shut it down.
@@ -42,12 +44,21 @@ pub fn run_roscore() -> io::Result<ROSChildProcess> {
 
 /// Helper function to check if the roscore is online.
 fn rostopic_listing_succeeds() -> bool {
-    return Command::new("rostopic")
-        .arg("list")
-        .output()
-        .unwrap()
-        .status
-        .success();
+    let result = Command::new("rostopic").arg("list").output().unwrap();
+    if !result.status.success() {
+        return false;
+    }
+
+    let output = String::from_utf8(result.stdout);
+    if let Ok(result) = output {
+        let topics = result
+            .split_whitespace()
+            .map(ToOwned::to_owned)
+            .collect::<HashSet<String>>();
+        topics.contains("/rosout") && topics.contains("/rosout_agg")
+    } else {
+        false
+    }
 }
 
 /// Waits until the roscore comes online by polling.
@@ -56,4 +67,12 @@ fn await_roscore() -> io::Result<()> {
         sleep(Duration::from_millis(100));
     }
     Ok(())
+}
+
+pub(crate) fn run_with_node(generator: impl Future<Output=()>) {
+    tokio_test::block_on(async move {
+        let _roscore = run_roscore().unwrap();
+        rosty::init("test").await.unwrap();
+        generator.await;
+    })
 }

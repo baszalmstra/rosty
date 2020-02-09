@@ -1,14 +1,10 @@
 mod util;
 use futures::{future::maybe_done, pin_mut};
+use rosty::Topic;
 
 #[test]
 fn shutdown_token() {
-    tokio_test::block_on(async {
-        let _roscore = util::run_roscore().unwrap();
-
-        // Construct the ROS node and bind it to the local address
-        rosty::init("node_test").await.unwrap();
-
+    util::run_with_node(async {
         // Get the future to run the node and wrap it so we can check its output
         let run_future = maybe_done(rosty::run());
 
@@ -28,3 +24,4 @@ fn shutdown_token() {
         run_future.as_mut().await;
     });
 }
+
