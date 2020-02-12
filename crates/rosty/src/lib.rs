@@ -9,6 +9,8 @@ extern crate log;
 
 mod node;
 mod rosxmlrpc;
+mod tcpros;
+mod rosmsg;
 
 use node::{Node, NodeArgs};
 use crate::rosxmlrpc::Response;

@@ -123,8 +123,4 @@ impl Node {
             .get_topic_types()
             .await
     }
-
-//    pub async fn get_param(&self, key: &str) -> Response<Value> {
-//        self.master.
-//    }
 }
