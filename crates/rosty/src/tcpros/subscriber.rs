@@ -43,7 +43,7 @@ impl Subscriber {
     /// Connect to node that publishes the subscribed topic
     pub async fn connect_to<U: ToSocketAddrs>(&mut self, publisher: &str, addresses: U) {
         for address in addresses.to_socket_addrs().await {
-
+            //self.publisher_tx.send(address).expect("connection future has died")
         }
     }
 }
