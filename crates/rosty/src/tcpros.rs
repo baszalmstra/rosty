@@ -18,3 +18,4 @@ trait Message: Clone + Debug + Default + PartialEq + Send + 'static {
     /// Returns the message definition associated with a type or None if the message is anonymous.
     fn definition() -> Option<&'static MessageDefinition>;
 }
+
