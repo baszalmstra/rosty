@@ -34,7 +34,7 @@ impl Subscriber {
                 tokio::spawn(connect_to_publisher::<T>(addr, caller_id.clone(), topic_name.clone(), data_tx));
             }
         });
-
+        
         Subscriber {
             publisher_tx
         }
