@@ -1,10 +1,13 @@
 use tokio::net::ToSocketAddrs;
 use tokio::sync::mpsc;
 use tokio::net::TcpStream;
-use std::net::SocketAddr;
+use std::net::{SocketAddr};
 use futures::stream::StreamExt;
 use std::io;
 use super::Message;
+use std::collections::HashMap;
+use tokio::io::{AsyncWrite, AsyncRead};
+use crate::tcpros::header::encode;
 
 struct MessageInfo {
     caller_id: String,
@@ -54,13 +57,27 @@ async fn connect_to_publisher<T: Message>(addr: SocketAddr, caller_id: String, t
     let mut stream = TcpStream::connect(addr).await?;
 
     // Exchange header information to describe what the subscriber will listen to
-    let pub_caller_id = handshake::<T>(&mut stream, &caller_id, &topic).await?;
+    let pub_caller_id = handshake::<T, _>(&mut stream, &caller_id, &topic).await?;
 
     Ok(())
 }
 
 /// Performs a handshake after the initial connection has been made to let the publisher know what
 /// we are interested in.
-async fn handshake<T: Message>(stream: &mut TcpStream, caller_id: &str, topic: &str) -> Result<(), io::Error> {
+async fn handshake<T: Message, U: AsyncRead + AsyncWrite + Unpin>(mut stream: &mut U, caller_id: &str, topic: &str) -> Result<(), io::Error> {
+    write_handshake_request::<T, U>(stream, caller_id, topic).await?;
+    //read_handshake_response::<T, U>(stream).await?;
     Ok(())
+}
+
+/// Write the request message to the given stream
+async fn write_handshake_request<T: Message, U: AsyncWrite + Unpin>(mut stream: &mut U,
+caller_id: &str, topic: &str) -> Result<(), io::Error> {
+    let mut fields = HashMap::<String, String>::new();
+    fields.insert(String::from("message_definition"), T::msg_definition());
+    fields.insert(String::from("callerid"), String::from(caller_id));
+    fields.insert(String::from("topic"), String::from(topic));
+    fields.insert(String::from("md5sum"), T::md5sum());
+    fields.insert(String::from("type"), T::msg_type());
+    encode(&mut stream, &fields).await
 }

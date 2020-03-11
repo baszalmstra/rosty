@@ -8,7 +8,6 @@ pub trait RosMsg: std::marker::Sized {
     fn encode<W: io::Write>(&self, w: W) -> io::Result<()>;
     fn decode<R: io::Read>(r: R) -> io::Result<Self>;
 
-    #[inline]
     fn encode_vec(&self) -> io::Result<Vec<u8>> {
         let mut writer = io::Cursor::new(Vec::with_capacity(128));
         // skip the first 4 bytes that will contain the message length
@@ -23,7 +22,6 @@ pub trait RosMsg: std::marker::Sized {
         Ok(writer.into_inner())
     }
 
-    #[inline]
     fn decode_slice(bytes: &[u8]) -> io::Result<Self> {
         let mut reader = io::Cursor::new(bytes);
         // skip the first 4 bytes that contain the message length

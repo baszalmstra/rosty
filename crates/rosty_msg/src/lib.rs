@@ -7,7 +7,7 @@ mod time;
 pub use msgs::*;
 pub use time::{Duration, Time};
 
-use rosmsg::RosMsg;
+pub use rosmsg::RosMsg;
 
 pub trait Message: Clone + Debug + Default + PartialEq + RosMsg + Send + Sync + 'static {
     fn msg_definition() -> String;
