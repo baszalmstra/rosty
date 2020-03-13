@@ -1,17 +1,15 @@
-use serde::{Deserialize, Serialize};
-use crate::rosxmlrpc::{Response, ResponseError, Value, Params};
 use crate::rosxmlrpc::response_info::ResponseInfo;
+use crate::rosxmlrpc::{Params, Response, ResponseError, Value};
+use serde::{Deserialize, Serialize};
 
 pub struct Client {
-    master_uri: xmlrpc::Uri
+    master_uri: xmlrpc::Uri,
 }
 
 impl Client {
     pub fn new(master_uri: String) -> Result<Client, failure::Error> {
         let master_uri = master_uri.parse()?;
-        Ok(Client {
-            master_uri,
-        })
+        Ok(Client { master_uri })
     }
 
     pub async fn request_tree_with_tree(&self, name: &str, params: Params) -> Response<Value> {
@@ -34,8 +32,8 @@ impl Client {
     }
 
     pub async fn request_tree<S>(&self, name: &str, params: &S) -> Response<Value>
-        where
-            S: Serialize,
+    where
+        S: Serialize,
     {
         let params = xmlrpc::into_params(params).map_err(bad_request_structure)?;
         self.request_tree_with_tree(name, params).await

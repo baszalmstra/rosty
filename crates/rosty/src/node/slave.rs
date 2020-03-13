@@ -29,7 +29,7 @@ impl Slave {
         port: u16,
         name: &str,
         shutdown_signal: ShutdownToken,
-    ) -> Result<(Slave, impl Future<Output=Result<(), failure::Error>>), failure::Error> {
+    ) -> Result<(Slave, impl Future<Output = Result<(), failure::Error>>), failure::Error> {
         // Resolve the hostname to an address. 0 for the port indicates that the slave can bind to
         // any port that is available
         let addr = format!("{}:{}", bind_address, port)
@@ -39,7 +39,8 @@ impl Slave {
             .ok_or_else(|| {
                 failure::format_err!(
                     "Could not resolve '{}:{}' to a valid socket address",
-                    bind_address, port
+                    bind_address,
+                    port
                 )
             })?;
 
@@ -52,8 +53,8 @@ impl Slave {
             async { Ok(Value::String(master_uri)) }
         });
 
-        server.register_value("getPid", "PID", |_args| {
-            async { Ok(Value::Int(getpid().into())) }
+        server.register_value("getPid", "PID", |_args| async {
+            Ok(Value::Int(getpid().into()))
         });
 
         let rpc_shutdown_signal = shutdown_signal.clone();
@@ -78,10 +79,13 @@ impl Slave {
         let (server, addr) = server.bind(&addr, shutdown_signal.clone())?;
         let server = tokio::spawn(server).unwrap_or_else(|e| Err(e.into()));
 
-        Ok((Slave {
-            name: name.to_owned(),
-            uri: format!("http://{}:{}/", hostname, addr.port()),
-        }, server))
+        Ok((
+            Slave {
+                name: name.to_owned(),
+                uri: format!("http://{}:{}/", hostname, addr.port()),
+            },
+            server,
+        ))
     }
 
     /// Returns the listen URI of the slave

@@ -5,7 +5,7 @@ mod slave;
 mod topic;
 
 pub use args::NodeArgs;
-use master::{Master};
+use master::Master;
 use shutdown_token::ShutdownToken;
 use slave::Slave;
 
@@ -119,8 +119,6 @@ impl Node {
 
     /// Returns a list of all topics
     pub async fn topics(&self) -> Response<Vec<Topic>> {
-        self.master
-            .get_topic_types()
-            .await
+        self.master.get_topic_types().await
     }
 }

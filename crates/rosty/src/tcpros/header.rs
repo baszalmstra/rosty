@@ -1,6 +1,6 @@
+use rosty_msg::RosMsg;
 use std::collections::HashMap;
 use std::io;
-use rosty_msg::RosMsg;
 use tokio::io::AsyncWriteExt;
 
 // pub async fn decode<R: std::io::Read>(data: &mut R) -> Result<HashMap<String, String>, io::Error> {
