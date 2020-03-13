@@ -7,7 +7,7 @@ use std::io;
 use super::Message;
 use std::collections::HashMap;
 use tokio::io::{AsyncWrite, AsyncRead};
-use crate::tcpros::header::encode;
+use crate::tcpros::header::encode_and_write;
 
 struct MessageInfo {
     caller_id: String,
@@ -79,5 +79,5 @@ caller_id: &str, topic: &str) -> Result<(), io::Error> {
     fields.insert(String::from("topic"), String::from(topic));
     fields.insert(String::from("md5sum"), T::md5sum());
     fields.insert(String::from("type"), T::msg_type());
-    encode(&mut stream, &fields).await
+    encode_and_write(&mut stream, &fields).await
 }

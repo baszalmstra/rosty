@@ -7,12 +7,12 @@ use tokio::io::AsyncWriteExt;
 //     RosMsg::decode(data)
 // }
 
-pub async fn encode<W: tokio::io::AsyncWrite + Unpin>(
+pub async fn encode_and_write<W: tokio::io::AsyncWrite + Unpin>(
     writer: &mut W,
     data: &HashMap<String, String>,
 ) -> Result<(), io::Error> {
     let data = data.encode_vec()?;
-    writer.write(&data).await;
+    writer.write(&data).await?;
     Ok(())
 }
 
