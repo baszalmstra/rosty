@@ -24,4 +24,3 @@ fn shutdown_token() {
         run_future.as_mut().await;
     });
 }
-

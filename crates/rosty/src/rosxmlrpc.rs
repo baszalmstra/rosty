@@ -9,9 +9,9 @@
 //!
 //! For more information read: https://wiki.ros.org/ROS/Master_Slave_APIs
 
+mod client;
 mod response_info;
 mod server;
-mod client;
 
 pub use client::Client;
 pub use server::ServerBuilder;

@@ -12,9 +12,9 @@ mod rosxmlrpc;
 mod tcpros;
 mod time;
 
-use node::{Node, NodeArgs};
-use crate::rosxmlrpc::Response;
 pub use crate::node::Topic;
+use crate::rosxmlrpc::Response;
+use node::{Node, NodeArgs};
 
 /// The instance that represents this node.
 static NODE: Lazy<ShardedLock<Option<Node>>> = Lazy::new(|| ShardedLock::new(None));
@@ -56,7 +56,9 @@ macro_rules! node {
     };
 }
 
-pub async fn topics() -> Response<Vec<Topic>> { node!().topics().await }
+pub async fn topics() -> Response<Vec<Topic>> {
+    node!().topics().await
+}
 
 pub async fn run() {
     node!().run().await

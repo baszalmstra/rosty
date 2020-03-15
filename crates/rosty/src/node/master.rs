@@ -31,7 +31,7 @@ impl Master {
             .client
             .request("getTopicTypes", &(&self.client_id))
             .await
-            .map(|v:Vec<(String,String)>| {
+            .map(|v: Vec<(String, String)>| {
                 v.into_iter()
                     .map(|(name, data_type)| Topic { name, data_type })
                     .collect()

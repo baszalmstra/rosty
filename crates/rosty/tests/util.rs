@@ -1,11 +1,11 @@
 use nix::sys::signal::{kill, Signal};
 use nix::unistd::Pid;
 use std::collections::HashSet;
+use std::future::Future;
 use std::process::{Child, Command, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
 use std::{env, io};
-use std::future::Future;
 
 /// Enable RAII usage of a ros process. When the process is dropped it's send the SIGINT signal to
 /// properly shut it down.
@@ -69,7 +69,7 @@ fn await_roscore() -> io::Result<()> {
     Ok(())
 }
 
-pub(crate) fn run_with_node(generator: impl Future<Output=()>) {
+pub(crate) fn run_with_node(generator: impl Future<Output = ()>) {
     tokio_test::block_on(async move {
         let _roscore = run_roscore().unwrap();
         rosty::init("test").await.unwrap();

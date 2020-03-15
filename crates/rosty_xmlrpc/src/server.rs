@@ -97,18 +97,16 @@ impl ServerBuilder {
         Tef: (Fn(&Error) -> Response) + Send + Sync + Copy + 'static,
         Tdf: (Fn(&Error) -> Response) + Send + Sync + Copy + 'static,
     {
-        self.register_value_async(name, move |req| {
-            async move {
-                let params = match from_params(req) {
-                    Ok(v) => v,
-                    Err(err) => {
-                        let err = SyncFailure::new(err);
-                        return decode_fail(&err.into());
-                    }
-                };
-                let response = handler(params).await?;
-                into_params(&response).or_else(|v| encode_fail(&SyncFailure::new(v).into()))
-            }
+        self.register_value_async(name, move |req| async move {
+            let params = match from_params(req) {
+                Ok(v) => v,
+                Err(err) => {
+                    let err = SyncFailure::new(err);
+                    return decode_fail(&err.into());
+                }
+            };
+            let response = handler(params).await?;
+            into_params(&response).or_else(|v| encode_fail(&SyncFailure::new(v).into()))
         });
     }
 
@@ -147,12 +145,14 @@ impl ServerBuilder {
         let service = ConnectionService {
             handlers: Arc::new(self.handlers),
         };
-        let server = hyper::Server::try_bind(addr)?
-            .serve(service);
+        let server = hyper::Server::try_bind(addr)?.serve(service);
         let addr = server.local_addr();
-        Ok((server
-            .with_graceful_shutdown(shutdown_signal)
-            .map_err(Into::into), addr))
+        Ok((
+            server
+                .with_graceful_shutdown(shutdown_signal)
+                .map_err(Into::into),
+            addr,
+        ))
     }
 }
 
