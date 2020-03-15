@@ -71,5 +71,8 @@ fn read_rust_log() {
         .arg("tests/read_ros_message.py")
         .spawn()
         .expect("Could not spawn python process");
-    assert!(out.wait().expect("Process could not execute succesfully").success())
+    assert!(out
+        .wait()
+        .expect("Process could not execute succesfully")
+        .success())
 }

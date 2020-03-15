@@ -1,15 +1,19 @@
 use super::Message;
 use crate::tcpros::header;
 use futures::stream::StreamExt;
-use std::collections::{HashMap, BTreeSet};
+use futures::TryFutureExt;
+use rosty_msg::RosMsg;
+use std::collections::{BTreeSet, HashMap};
 use std::io;
+use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::net::ToSocketAddrs;
 use tokio::sync::mpsc;
-use rosty_msg::RosMsg;
+use tracing_futures::Instrument;
+use crate::Topic;
 
 #[derive(Fail, Debug)]
 enum SubscriberError {
@@ -58,6 +62,8 @@ pub struct Subscriber {
 
     /// A set of publishers this subscriber is connecting or connected to.
     connected_publishers: BTreeSet<String>,
+
+    topic: Topic,
 }
 
 impl Subscriber {
@@ -72,30 +78,54 @@ impl Subscriber {
         let caller_id = String::from(caller_id);
         let topic_name = String::from(topic);
 
-        tokio::spawn(async move {
-            while let Some(addr) = publisher_rx.next().await {
-                let data_tx = data_tx.clone();
-                tokio::spawn(connect_to_publisher::<T>(
-                    addr,
-                    caller_id.clone(),
-                    topic_name.clone(),
-                    data_tx,
-                ));
+        tokio::spawn(
+            async move {
+                while let Some(addr) = publisher_rx.next().await {
+                    let data_tx = data_tx.clone();
+                    tokio::spawn(
+                        connect_to_publisher::<T>(
+                            addr,
+                            caller_id.clone(),
+                            topic_name.clone(),
+                            data_tx,
+                        )
+                        .map_err(|e| {
+                            error!("error connecting to publisher: {}", e);
+                            e
+                        })
+                        .instrument(tracing::info_span!(
+                            "connect_to_publisher",
+                            addr = tracing::field::display(addr)
+                        )),
+                    );
+                }
             }
-        });
+            .instrument(tracing::info_span!(
+                "topic_connection_handler",
+                topic = topic
+            )),
+        );
 
-        tokio::spawn(async move {
-            while let Some(buffer) = data_rx.recv().await {
-                match RosMsg::decode_slice(&buffer.data) {
-                    Ok(value) => callback(value, &buffer.caller_id),
-                    Err(err) => {
-                        // REPORT AN ERROR
+        tokio::spawn(
+            async move {
+                while let Some(buffer) = data_rx.recv().await {
+                    match RosMsg::decode_slice(&buffer.data) {
+                        Ok(value) => callback(value, &buffer.caller_id),
+                        Err(err) => error!("failed to decode message: {}", err),
                     }
                 }
             }
-        });
+            .instrument(tracing::info_span!("handle_data", topic = topic)),
+        );
 
-        Subscriber { publisher_tx, connected_publishers: Default::default() }
+        Subscriber {
+            publisher_tx,
+            connected_publishers: Default::default(),
+            topic: Topic {
+                name: topic.to_owned(),
+                data_type: T::msg_type()
+            }
+        }
     }
 
     /// Returns the number of publishers
@@ -104,7 +134,7 @@ impl Subscriber {
     }
 
     /// Returns an iterator over all publishers
-    pub fn publishers(&self) -> impl Iterator<Item=String> + '_ {
+    pub fn publishers(&self) -> impl Iterator<Item = String> + '_ {
         self.connected_publishers.iter().cloned()
     }
 
@@ -115,6 +145,7 @@ impl Subscriber {
         addresses: U,
     ) -> Result<(), PublisherConnectError> {
         for address in addresses.to_socket_addrs().await? {
+            info!(topic=?self.topic, publisher=publisher, address=tracing::field::display(address), "connecting");
             self.publisher_tx
                 .send(address)
                 .await
@@ -147,16 +178,39 @@ async fn connect_to_publisher<T: Message>(
             .unwrap_or_default(),
     );
 
-    // Read packets from the stream
-    while let Ok(package) = super::read_packet(&mut stream).await {
-        if let Err(mpsc::error::TrySendError::Closed(_)) = data_tx.try_send(MessageInfo {
-            caller_id: pub_caller_id.clone(),
-            data: package,
-        }) {
-            // If the channel is closed, break out of the loop, effectively disconnecting
-            break;
+    async {
+        info!("connected");
+
+        // Read packets from the stream
+        loop {
+            match super::read_packet(&mut stream).await {
+                Ok(package) => {
+                    if let Err(mpsc::error::TrySendError::Closed(_)) =
+                        data_tx.try_send(MessageInfo {
+                            caller_id: pub_caller_id.clone(),
+                            data: package,
+                        })
+                    {
+                        // If the channel is closed, break out of the loop, effectively disconnecting
+                        info!("subscriber cancelled");
+                        break;
+                    }
+                }
+                Err(e) => {
+                    match e.kind() {
+                        ErrorKind::UnexpectedEof => info!("socket closed"),
+                        _ => error!("disconnecting: {}", e),
+                    }
+                    break;
+                }
+            }
         }
     }
+    .instrument(tracing::info_span!(
+        "data_loop",
+        pub_caller_id = tracing::field::display(&pub_caller_id),
+    ))
+    .await;
 
     Ok(())
 }

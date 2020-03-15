@@ -9,6 +9,7 @@ use crate::tcpros::Message;
 use crate::node::slave::subscriptions_tracker::SubscriptionsTracker;
 use std::sync::Arc;
 use crate::node::error::SubscriptionError;
+use tracing_futures::Instrument;
 
 mod subscriptions_tracker;
 
@@ -73,9 +74,11 @@ impl Slave {
             let name_string = name_string.clone();
             async move {
                 let mut args = unwrap_array_case(args).into_iter();
-                let _caller_id = args
-                    .next()
-                    .ok_or_else(|| ResponseError::Client("missing argument 'caller_id'".to_owned()))?;
+                let caller_id = match args
+                    .next() {
+                    Some(Value::String(caller_id)) => caller_id,
+                    _ => return Err(ResponseError::Client("missing argument 'caller_id'".to_owned()))
+                };
                 let topic = match args.next() {
                     Some(Value::String(topic)) => topic,
                     _ => return Err(ResponseError::Client("missing argument 'topic'".to_owned()))
@@ -89,7 +92,8 @@ impl Slave {
                     _ => Err(ResponseError::Client("publishers need to be strings".to_owned()))
                 })
                     .collect::<Response<Vec<String>>>()?;
-                subs.add_publishers(&topic, &name_string, publishers.into_iter())
+                subs.add_publishers(&topic, &name_string, publishers.iter().cloned())
+                    .instrument(tracing::trace_span!("publisherUpdate", caller_id=caller_id.as_str(), topic=topic.as_str(), publishers=?publishers))
                     .await
                     .map_err(|v| {
                         ResponseError::Server(format!("failed to handle publishers: {}", v))

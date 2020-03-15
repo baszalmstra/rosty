@@ -1,10 +1,10 @@
 mod args;
+mod error;
 mod master;
 mod shutdown_token;
 mod slave;
-mod topic;
 mod subscriber;
-mod error;
+mod topic;
 
 pub use args::NodeArgs;
 use master::Master;
@@ -16,10 +16,11 @@ use tokio::sync::Mutex;
 
 use crate::rosxmlrpc::Response;
 
-pub use master::Topic;
-use crate::tcpros::Message;
-pub use self::subscriber::Subscriber;
 pub use self::error::SubscriptionError;
+pub use self::subscriber::Subscriber;
+use crate::tcpros::Message;
+pub use master::Topic;
+use tracing_futures::Instrument;
 
 /// Represents a ROS node.
 ///
@@ -128,29 +129,42 @@ impl Node {
     }
 
     /// Connect to a topic
-    pub async fn subscribe<T, F>(&self, topic: &str, queue_size: usize, callback: F) -> Result<Subscriber, SubscriptionError>
+    pub async fn subscribe<T, F>(
+        &self,
+        topic: &str,
+        queue_size: usize,
+        callback: F,
+    ) -> Result<Subscriber, SubscriptionError>
     where
         T: Message,
-        F: Fn(T) + Send + 'static
+        F: Fn(T) + Send + 'static,
     {
-        self.subscribe_with_ids(topic, queue_size, move |data, _| callback(data)).await
+        self.subscribe_with_ids(topic, queue_size, move |data, _| callback(data))
+            .await
     }
 
     /// Connect to a topic
-    pub async fn subscribe_with_ids<T, F>(&self, topic: &str, mut queue_size: usize, callback: F) -> Result<Subscriber, SubscriptionError>
-        where
-            T: Message,
-            F: Fn(T, &str) + Send + 'static
+    pub async fn subscribe_with_ids<T, F>(
+        &self,
+        topic: &str,
+        mut queue_size: usize,
+        callback: F,
+    ) -> Result<Subscriber, SubscriptionError>
+    where
+        T: Message,
+        F: Fn(T, &str) + Send + 'static,
     {
         if queue_size == 0 {
             queue_size = usize::max_value();
         }
-        Subscriber::new::<T,F>(
+        Subscriber::new::<T, F>(
             Arc::clone(&self.master),
             Arc::clone(&self.slave),
             topic,
             queue_size,
-            callback
-        ).await
+            callback,
+        )
+        .instrument(tracing::info_span!("subscribe", topic = topic))
+        .await
     }
 }

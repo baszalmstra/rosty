@@ -3,6 +3,7 @@ use crate::rosxmlrpc::response_info::ResponseInfo;
 use futures::FutureExt;
 use std::future::Future;
 use std::net::SocketAddr;
+use tracing_futures::Instrument;
 
 /// Wraps an `xmlrpc::ServerBuilder` to hide the details of the ROS XMLRPC protocol.
 pub struct ServerBuilder {
@@ -23,8 +24,11 @@ impl ServerBuilder {
         R: Future<Output = Response<xmlrpc::Value>> + Send + 'static,
         T: (Fn(xmlrpc::Params) -> R) + Send + Sync + 'static,
     {
-        self.inner.register_value_async(name, move |args| {
-            handler(args).map(move |r| ResponseInfo::from_response(r, msg).into())
+        let name = name.into();
+        self.inner.register_value_async(&name.clone(), move |args| {
+            handler(args.clone())
+                .instrument(tracing::trace_span!("handle_call", name=name.as_str(), args=?args))
+                .map(move |r| ResponseInfo::from_response(r, msg).into())
         });
     }
 

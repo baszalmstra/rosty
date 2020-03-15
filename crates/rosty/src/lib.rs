@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 #[macro_use]
 extern crate failure;
 #[macro_use]
-extern crate log;
+extern crate tracing;
 
 mod node;
 mod rosxmlrpc;
