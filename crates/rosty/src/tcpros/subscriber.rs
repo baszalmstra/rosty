@@ -1,5 +1,6 @@
 use super::Message;
 use crate::tcpros::header;
+use futures::io::Error;
 use futures::stream::StreamExt;
 use std::collections::HashMap;
 use std::io;
@@ -8,6 +9,27 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::net::ToSocketAddrs;
 use tokio::sync::mpsc;
+
+#[derive(Fail, Debug)]
+enum SubscriberError {
+    #[fail(display = "transport error")]
+    TransportError(io::Error),
+
+    #[fail(display = "invalid header: {}", 0)]
+    InvalidHeader(header::InvalidHeaderError),
+}
+
+impl From<io::Error> for SubscriberError {
+    fn from(err: io::Error) -> Self {
+        SubscriberError::TransportError(err)
+    }
+}
+
+impl From<header::InvalidHeaderError> for SubscriberError {
+    fn from(err: header::InvalidHeaderError) -> Self {
+        SubscriberError::InvalidHeader(err)
+    }
+}
 
 struct MessageInfo {
     caller_id: String,
@@ -60,7 +82,7 @@ async fn connect_to_publisher<T: Message>(
     caller_id: String,
     topic: String,
     data_tx: mpsc::Sender<T>,
-) -> Result<(), io::Error> {
+) -> Result<(), SubscriberError> {
     // Connect to the publisher
     let mut stream = TcpStream::connect(addr).await?;
 
@@ -76,7 +98,7 @@ async fn handshake<T: Message, U: AsyncRead + AsyncWrite + Unpin>(
     mut stream: &mut U,
     caller_id: &str,
     topic: &str,
-) -> Result<Option<String>, io::Error> {
+) -> Result<Option<String>, SubscriberError> {
     write_handshake_request::<T, U>(stream, caller_id, topic).await?;
     read_handshake_response::<T, U>(stream).await
 }
@@ -86,21 +108,23 @@ async fn write_handshake_request<T: Message, U: AsyncWrite + Unpin>(
     mut stream: &mut U,
     caller_id: &str,
     topic: &str,
-) -> Result<(), io::Error> {
+) -> Result<(), SubscriberError> {
     let mut fields = HashMap::<String, String>::new();
     fields.insert(String::from("message_definition"), T::msg_definition());
     fields.insert(String::from("callerid"), String::from(caller_id));
     fields.insert(String::from("topic"), String::from(topic));
     fields.insert(String::from("md5sum"), T::md5sum());
     fields.insert(String::from("type"), T::msg_type());
-    header::encode(&mut stream, &fields).await
+    header::encode_and_write(&mut stream, &fields)
+        .await
+        .map_err(Into::into)
 }
 
 /// Read the handshake response from the publisher
-fn read_handshake_response<T: Message, U: AsyncRead + Unpin>(
+async fn read_handshake_response<T: Message, U: AsyncRead + Unpin>(
     mut stream: &mut U,
-) -> Result<Option<String>, io::Error> {
-    let fields = header::decode(&mut stream)?;
+) -> Result<Option<String>, SubscriberError> {
+    let fields = header::read_and_decode(&mut stream).await?;
     header::match_field(&fields, "md5sum", &T::md5sum())?;
     header::match_field(&fields, "type", &T::msg_type())?;
     Ok(fields.get("callerid").cloned())

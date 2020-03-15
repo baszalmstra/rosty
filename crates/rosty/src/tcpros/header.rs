@@ -5,7 +5,7 @@ use std::io::Cursor;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 
-pub async fn decode<R: tokio::io::AsyncRead + Unpin>(
+pub async fn read_and_decode<R: tokio::io::AsyncRead + Unpin>(
     stream: &mut R,
 ) -> Result<HashMap<String, String>, io::Error> {
     let mut data = vec![0u8; 4];
@@ -24,7 +24,7 @@ pub async fn decode<R: tokio::io::AsyncRead + Unpin>(
     RosMsg::decode(&mut cursor)
 }
 
-pub async fn encode<W: tokio::io::AsyncWrite + Unpin>(
+pub async fn encode_and_write<W: tokio::io::AsyncWrite + Unpin>(
     stream: &mut W,
     data: &HashMap<String, String>,
 ) -> Result<(), io::Error> {
@@ -44,17 +44,30 @@ pub async fn encode<W: tokio::io::AsyncWrite + Unpin>(
     Ok(())
 }
 
+#[derive(Fail, Debug)]
+pub enum InvalidHeaderError {
+    #[fail(display = "missing field '{}'", 0)]
+    MissingField(String),
+
+    #[fail(display = "field mismatch, expected '{}', found '{}'", 0, 1)]
+    FieldMismatch(String, String),
+}
+
 pub fn match_field(
     fields: &HashMap<String, String>,
     field: &str,
     expected: &str,
-) -> Result<(), failure::Error> {
+) -> Result<(), InvalidHeaderError> {
     let actual = match fields.get(field) {
         Some(actual) => actual,
-        None => failure::bail!("missing field {}", field),
+        None => return Err(InvalidHeaderError::MissingField(field.to_owned())),
     };
     if actual != expected {
-        failure::bail!("header mismatch expected '{}', got '{}'", expected, actual);
+        Err(InvalidHeaderError::FieldMismatch(
+            expected.to_owned(),
+            actual.to_owned(),
+        ))
+    } else {
+        Ok(())
     }
-    Ok(())
 }
