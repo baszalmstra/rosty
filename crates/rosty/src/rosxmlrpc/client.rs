@@ -7,9 +7,8 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(master_uri: String) -> Result<Client, failure::Error> {
-        let master_uri = master_uri.parse()?;
-        Ok(Client { master_uri })
+    pub fn new(master_uri: xmlrpc::Uri) -> Client {
+        Client { master_uri }
     }
 
     pub async fn request_tree_with_tree(&self, name: &str, params: Params) -> Response<Value> {

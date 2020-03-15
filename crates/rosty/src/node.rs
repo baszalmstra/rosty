@@ -3,6 +3,8 @@ mod master;
 mod shutdown_token;
 mod slave;
 mod topic;
+mod subscriber;
+mod error;
 
 pub use args::NodeArgs;
 use master::Master;
@@ -15,6 +17,9 @@ use tokio::sync::Mutex;
 use crate::rosxmlrpc::Response;
 
 pub use master::Topic;
+use crate::tcpros::Message;
+pub use self::subscriber::Subscriber;
+pub use self::error::SubscriptionError;
 
 /// Represents a ROS node.
 ///
@@ -23,8 +28,8 @@ pub use master::Topic;
 ///    master, and negotiating connections with other nodes.
 ///  * A topic transport protocol
 pub struct Node {
-    slave: Slave,
-    master: Master,
+    slave: Arc<Slave>,
+    master: Arc<Master>,
     hostname: String,
     bind_address: String,
     name: String,
@@ -77,8 +82,8 @@ impl Node {
         });
 
         Ok(Node {
-            slave,
-            master,
+            slave: Arc::new(slave),
+            master: Arc::new(master),
             hostname: args.hostname.to_owned(),
             bind_address: bind_host.to_owned(),
             name,
@@ -120,5 +125,32 @@ impl Node {
     /// Returns a list of all topics
     pub async fn topics(&self) -> Response<Vec<Topic>> {
         self.master.get_topic_types().await
+    }
+
+    /// Connect to a topic
+    pub async fn subscribe<T, F>(&self, topic: &str, queue_size: usize, callback: F) -> Result<Subscriber, SubscriptionError>
+    where
+        T: Message,
+        F: Fn(T) + Send + 'static
+    {
+        self.subscribe_with_ids(topic, queue_size, move |data, _| callback(data)).await
+    }
+
+    /// Connect to a topic
+    pub async fn subscribe_with_ids<T, F>(&self, topic: &str, mut queue_size: usize, callback: F) -> Result<Subscriber, SubscriptionError>
+        where
+            T: Message,
+            F: Fn(T, &str) + Send + 'static
+    {
+        if queue_size == 0 {
+            queue_size = usize::max_value();
+        }
+        Subscriber::new::<T,F>(
+            Arc::clone(&self.master),
+            Arc::clone(&self.slave),
+            topic,
+            queue_size,
+            callback
+        ).await
     }
 }

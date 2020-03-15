@@ -1,14 +1,15 @@
 use super::Message;
 use crate::tcpros::header;
-use futures::io::Error;
 use futures::stream::StreamExt;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeSet};
 use std::io;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::net::ToSocketAddrs;
 use tokio::sync::mpsc;
+use rosty_msg::RosMsg;
 
 #[derive(Fail, Debug)]
 enum SubscriberError {
@@ -17,6 +18,15 @@ enum SubscriberError {
 
     #[fail(display = "invalid header: {}", 0)]
     InvalidHeader(header::InvalidHeaderError),
+}
+
+#[derive(Fail, Debug)]
+pub enum PublisherConnectError {
+    #[fail(display = "connection queue is full")]
+    ConnectionQueueFull,
+
+    #[fail(display = "transport error")]
+    TransportError(io::Error),
 }
 
 impl From<io::Error> for SubscriberError {
@@ -31,14 +41,23 @@ impl From<header::InvalidHeaderError> for SubscriberError {
     }
 }
 
+impl From<io::Error> for PublisherConnectError {
+    fn from(err: io::Error) -> Self {
+        PublisherConnectError::TransportError(err)
+    }
+}
+
 struct MessageInfo {
-    caller_id: String,
+    caller_id: Arc<String>,
     data: Vec<u8>,
 }
 
-struct Subscriber {
+pub struct Subscriber {
     /// Sender end of a channel that receives updates about publishers
     publisher_tx: mpsc::Sender<SocketAddr>,
+
+    /// A set of publishers this subscriber is connecting or connected to.
+    connected_publishers: BTreeSet<String>,
 }
 
 impl Subscriber {
@@ -47,7 +66,7 @@ impl Subscriber {
         T: Message,
         F: Fn(T, &str) + Send + 'static,
     {
-        let (data_tx, data_rx) = mpsc::channel(queue_size);
+        let (data_tx, mut data_rx) = mpsc::channel(queue_size);
         let (publisher_tx, mut publisher_rx) = mpsc::channel(8);
 
         let caller_id = String::from(caller_id);
@@ -65,14 +84,49 @@ impl Subscriber {
             }
         });
 
-        Subscriber { publisher_tx }
+        tokio::spawn(async move {
+            while let Some(buffer) = data_rx.recv().await {
+                match RosMsg::decode_slice(&buffer.data) {
+                    Ok(value) => callback(value, &buffer.caller_id),
+                    Err(err) => {
+                        // REPORT AN ERROR
+                    }
+                }
+            }
+        });
+
+        Subscriber { publisher_tx, connected_publishers: Default::default() }
+    }
+
+    /// Returns the number of publishers
+    pub fn publisher_count(&self) -> usize {
+        self.connected_publishers.len()
+    }
+
+    /// Returns an iterator over all publishers
+    pub fn publishers(&self) -> impl Iterator<Item=String> + '_ {
+        self.connected_publishers.iter().cloned()
     }
 
     /// Connect to node that publishes the subscribed topic
-    pub async fn connect_to<U: ToSocketAddrs>(&mut self, publisher: &str, addresses: U) {
-        for address in addresses.to_socket_addrs().await {
-            //self.publisher_tx.send(address).expect("connection future has died")
+    pub async fn connect_to<U: ToSocketAddrs>(
+        &mut self,
+        publisher: &str,
+        addresses: U,
+    ) -> Result<(), PublisherConnectError> {
+        for address in addresses.to_socket_addrs().await? {
+            self.publisher_tx
+                .send(address)
+                .await
+                .map_err(|_| PublisherConnectError::ConnectionQueueFull)?;
         }
+        self.connected_publishers.insert(publisher.to_owned());
+        Ok(())
+    }
+
+    /// Returns true if the subscriber is connecto to the given publisher
+    pub fn is_connected_to(&self, publisher: &str) -> bool {
+        self.connected_publishers.contains(publisher)
     }
 }
 
@@ -81,13 +135,28 @@ async fn connect_to_publisher<T: Message>(
     addr: SocketAddr,
     caller_id: String,
     topic: String,
-    data_tx: mpsc::Sender<T>,
+    mut data_tx: mpsc::Sender<MessageInfo>,
 ) -> Result<(), SubscriberError> {
     // Connect to the publisher
     let mut stream = TcpStream::connect(addr).await?;
 
     // Exchange header information to describe what the subscriber will listen to
-    let pub_caller_id = handshake::<T, _>(&mut stream, &caller_id, &topic).await?;
+    let pub_caller_id = Arc::new(
+        handshake::<T, _>(&mut stream, &caller_id, &topic)
+            .await?
+            .unwrap_or_default(),
+    );
+
+    // Read packets from the stream
+    while let Ok(package) = super::read_packet(&mut stream).await {
+        if let Err(mpsc::error::TrySendError::Closed(_)) = data_tx.try_send(MessageInfo {
+            caller_id: pub_caller_id.clone(),
+            data: package,
+        }) {
+            // If the channel is closed, break out of the loop, effectively disconnecting
+            break;
+        }
+    }
 
     Ok(())
 }
@@ -95,7 +164,7 @@ async fn connect_to_publisher<T: Message>(
 /// Performs a handshake after the initial connection has been made to let the publisher know what
 /// we are interested in. Returns the caller_id of the publisher on a successful connection.
 async fn handshake<T: Message, U: AsyncRead + AsyncWrite + Unpin>(
-    mut stream: &mut U,
+    stream: &mut U,
     caller_id: &str,
     topic: &str,
 ) -> Result<Option<String>, SubscriberError> {

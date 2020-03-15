@@ -15,7 +15,7 @@ impl Master {
         caller_api: &str,
     ) -> Result<Self, failure::Error> {
         Ok(Master {
-            client: rosxmlrpc::Client::new(master_uri.to_owned())?,
+            client: rosxmlrpc::Client::new(master_uri.parse()?),
             client_id: client_id.to_owned(),
             caller_api: caller_api.to_owned(),
         })
@@ -43,6 +43,10 @@ impl Master {
         self.client
             .request("lookupNode", &(&self.client_id, &node_name))
             .await
+    }
+
+    pub async fn register_subscriber(&self, topic: &str, topic_type: &str) -> Response<Vec<String>> {
+        self.client.request("registerSubscriber", &(&self.client_id, topic, topic_type, &self.caller_api)).await
     }
 }
 
