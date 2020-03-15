@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 mod msgs;
-mod rosmsg;
+pub mod rosmsg;
 mod time;
 
 pub use msgs::*;
