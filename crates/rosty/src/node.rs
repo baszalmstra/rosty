@@ -129,42 +129,24 @@ impl Node {
     }
 
     /// Connect to a topic
-    pub async fn subscribe<T, F>(
+    pub async fn subscribe<T: Message>(
         &self,
         topic: &str,
         queue_size: usize,
-        callback: F,
-    ) -> Result<Subscriber, SubscriptionError>
-    where
-        T: Message,
-        F: Fn(T) + Send + 'static,
+    ) -> Result<Subscriber<T>, SubscriptionError>
     {
-        self.subscribe_with_ids(topic, queue_size, move |data, _| callback(data))
-            .await
-    }
-
-    /// Connect to a topic
-    pub async fn subscribe_with_ids<T, F>(
-        &self,
-        topic: &str,
-        mut queue_size: usize,
-        callback: F,
-    ) -> Result<Subscriber, SubscriptionError>
-    where
-        T: Message,
-        F: Fn(T, &str) + Send + 'static,
-    {
-        if queue_size == 0 {
-            queue_size = usize::max_value();
-        }
-        Subscriber::new::<T, F>(
+        let queue_size = if queue_size == 0 {
+            usize::max_value()
+        } else {
+            queue_size
+        };
+        Subscriber::new(
             Arc::clone(&self.master),
             Arc::clone(&self.slave),
             topic,
             queue_size,
-            callback,
         )
-        .instrument(tracing::info_span!("subscribe", topic = topic))
-        .await
+            .instrument(tracing::info_span!("subscribe", topic = topic))
+            .await
     }
 }

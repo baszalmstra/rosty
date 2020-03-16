@@ -72,12 +72,14 @@ pub struct Subscriber {
     topic: Topic,
 }
 
+pub type IncomingMessage<T> = (String, T);
+
 impl Subscriber {
-    pub fn new<F, T>(caller_id: &str, topic: &str, queue_size: usize, callback: F) -> Self
+    pub fn new<T>(caller_id: &str, topic: &str, queue_size: usize) -> (Self, mpsc::Receiver<IncomingMessage<T>>)
     where
-        T: Message,
-        F: Fn(T, &str) + Send + 'static,
+        T: Message
     {
+        let (mut topic_tx, topic_rx) = mpsc::channel(queue_size);
         let (data_tx, mut data_rx) = mpsc::channel(queue_size);
         let (publisher_tx, mut publisher_rx) = mpsc::channel(8);
 
@@ -116,7 +118,11 @@ impl Subscriber {
             async move {
                 while let Some(buffer) = data_rx.recv().await {
                     match RosMsg::decode_slice(&buffer.data) {
-                        Ok(value) => callback(value, &buffer.caller_id),
+                        Ok(value) => {
+                            if let Err(e) = topic_tx.try_send(((*buffer.caller_id).clone(), value)) {
+                                error!("queue is full!");
+                            }
+                        },
                         Err(err) => error!("failed to decode message: {}", err),
                     }
                 }
@@ -124,14 +130,14 @@ impl Subscriber {
             .instrument(tracing::info_span!("handle_data", topic = topic)),
         );
 
-        Subscriber {
+        (Subscriber {
             publisher_tx,
             connected_publishers: Default::default(),
             topic: Topic {
                 name: topic.to_owned(),
                 data_type: T::msg_type(),
             },
-        }
+        }, topic_rx)
     }
 
     /// Returns the number of publishers

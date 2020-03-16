@@ -5,11 +5,12 @@ use crate::node::error::SubscriptionError;
 use crate::node::shutdown_token::ShutdownToken;
 use crate::node::slave::subscriptions_tracker::SubscriptionsTracker;
 use crate::rosxmlrpc::{Params, Response, ResponseError, ServerBuilder, Value};
-use crate::tcpros::Message;
+use crate::tcpros::{Message, IncomingMessage};
 use futures::future::TryFutureExt;
 use std::future::Future;
 use std::sync::Arc;
 use tracing_futures::Instrument;
+use tokio::sync::mpsc;
 
 mod subscriptions_tracker;
 
@@ -140,18 +141,14 @@ impl Slave {
     }
 
     /// Adds a new subscription to list of tracked subscriptions
-    pub async fn add_subscription<T, F>(
+    pub async fn add_subscription<T: Message>(
         &self,
         topic: &str,
         queue_size: usize,
-        callback: F,
-    ) -> Result<(), SubscriptionError>
-    where
-        T: Message,
-        F: Fn(T, &str) + Send + 'static,
+    ) -> Result<mpsc::Receiver<IncomingMessage<T>>, SubscriptionError>
     {
         self.subscriptions
-            .add(&self.name, topic, queue_size, callback)
+            .add(&self.name, topic, queue_size)
             .await
     }
 

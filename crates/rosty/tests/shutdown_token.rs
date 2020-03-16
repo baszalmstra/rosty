@@ -1,6 +1,5 @@
 mod util;
 use futures::{future::maybe_done, pin_mut};
-use rosty::Topic;
 
 #[test]
 fn shutdown_token() {

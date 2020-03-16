@@ -1,26 +1,30 @@
 use super::master::Master;
 use super::slave::Slave;
 use crate::node::error::SubscriptionError;
-use crate::tcpros::Message;
+use crate::tcpros::{Message, IncomingMessage};
 use std::sync::Arc;
+use futures::Stream;
+use tokio::sync::mpsc;
+use std::task::{Context, Poll};
+use std::pin::Pin;
 
-pub struct Subscriber {
+pub struct Subscriber<T: Message> {
     master: Arc<Master>,
     slave: Arc<Slave>,
     name: String,
+    channel: mpsc::Receiver<IncomingMessage<T>>
 }
 
-impl Subscriber {
-    pub(crate) async fn new<T: Message, F: Fn(T, &str) + Send + 'static>(
+impl<T: Message> Subscriber<T> {
+    pub(crate) async fn new(
         master: Arc<Master>,
         slave: Arc<Slave>,
         name: &str,
         queue_size: usize,
-        callback: F,
     ) -> Result<Self, SubscriptionError> {
         // Register the subscription with the slave
-        slave
-            .add_subscription::<T, F>(name, queue_size, callback)
+        let channel = slave
+            .add_subscription::<T>(name, queue_size)
             .await?;
 
         // Notify the master that we are subscribing to the given topic. The master will return
@@ -40,6 +44,15 @@ impl Subscriber {
             master,
             slave,
             name: name.to_owned(),
+            channel
         })
+    }
+}
+
+impl<T:Message> Stream for Subscriber<T> {
+    type Item = IncomingMessage<T>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.get_mut().channel.poll_recv(cx)
     }
 }

@@ -1,11 +1,11 @@
 use crate::node::error::SubscriptionError;
 use crate::rosxmlrpc;
 use crate::rosxmlrpc::{Response, ResponseError};
-use crate::tcpros::{Message, Subscriber};
+use crate::tcpros::{Message, Subscriber, IncomingMessage};
 use futures::TryFutureExt;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, mpsc};
 
 #[derive(Default)]
 pub struct SubscriptionsTracker {
@@ -14,25 +14,21 @@ pub struct SubscriptionsTracker {
 
 impl SubscriptionsTracker {
     /// Tries to add a subscription to the tracker
-    pub async fn add<T, F>(
+    pub async fn add<T: Message>(
         &self,
         name: &str,
         topic: &str,
         queue_size: usize,
-        callback: F,
-    ) -> Result<(), SubscriptionError>
-    where
-        T: Message,
-        F: Fn(T, &str) + Send + 'static,
+    ) -> Result<mpsc::Receiver<IncomingMessage<T>>, SubscriptionError>
     {
         match self.mapping.lock().await.entry(String::from(topic)) {
             Entry::Occupied(..) => Err(SubscriptionError::DuplicateSubscription {
                 topic: topic.to_owned(),
             }),
             Entry::Vacant(entry) => {
-                let subscriber = Subscriber::new::<F, T>(name, topic, queue_size, callback);
+                let (subscriber, channel) = Subscriber::new::<T>(name, topic, queue_size);
                 entry.insert(subscriber);
-                Ok(())
+                Ok(channel)
             }
         }
     }
