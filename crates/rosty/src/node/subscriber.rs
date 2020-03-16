@@ -1,18 +1,18 @@
 use super::master::Master;
 use super::slave::Slave;
 use crate::node::error::SubscriptionError;
-use crate::tcpros::{Message, IncomingMessage};
-use std::sync::Arc;
+use crate::tcpros::{IncomingMessage, Message};
 use futures::Stream;
-use tokio::sync::mpsc;
-use std::task::{Context, Poll};
 use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+use tokio::sync::mpsc;
 
 pub struct Subscriber<T: Message> {
-    master: Arc<Master>,
-    slave: Arc<Slave>,
-    name: String,
-    channel: mpsc::Receiver<IncomingMessage<T>>
+    _master: Arc<Master>,
+    _slave: Arc<Slave>,
+    _name: String,
+    channel: mpsc::Receiver<IncomingMessage<T>>,
 }
 
 impl<T: Message> Subscriber<T> {
@@ -23,16 +23,14 @@ impl<T: Message> Subscriber<T> {
         queue_size: usize,
     ) -> Result<Self, SubscriptionError> {
         // Register the subscription with the slave
-        let channel = slave
-            .add_subscription::<T>(name, queue_size)
-            .await?;
+        let channel = slave.add_subscription::<T>(name, queue_size).await?;
 
         // Notify the master that we are subscribing to the given topic. The master will return
         // a list of publishers that publish to the topic we want to subscribe to.
         let publishers = master
             .register_subscriber(name, &T::msg_type())
             .await
-            .map_err(|e| SubscriptionError::MasterCommunicationError(e))?;
+            .map_err(SubscriptionError::MasterCommunicationError)?;
 
         // Let the slave know which nodes are publishing data for the topic so that the slave will
         // connect to them to receive the data
@@ -41,15 +39,15 @@ impl<T: Message> Subscriber<T> {
             .await?;
 
         Ok(Self {
-            master,
-            slave,
-            name: name.to_owned(),
-            channel
+            _master: master,
+            _slave: slave,
+            _name: name.to_owned(),
+            channel,
         })
     }
 }
 
-impl<T:Message> Stream for Subscriber<T> {
+impl<T: Message> Stream for Subscriber<T> {
     type Item = IncomingMessage<T>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

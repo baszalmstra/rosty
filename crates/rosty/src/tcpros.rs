@@ -5,7 +5,7 @@ use byteorder::{LittleEndian, WriteBytesExt};
 pub use rosty_msg::Message;
 use std::io;
 use std::io::Cursor;
-pub use subscriber::{PublisherConnectError, Subscriber, IncomingMessage};
+pub use subscriber::{IncomingMessage, PublisherConnectError, Subscriber};
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
 

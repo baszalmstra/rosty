@@ -27,18 +27,17 @@ impl Master {
     }
 
     pub async fn get_topic_types(&self) -> Response<Vec<Topic>> {
-        let result = self
-            .client
+        self.client
             .request("getTopicTypes", &(&self.client_id))
             .await
             .map(|v: Vec<(String, String)>| {
                 v.into_iter()
                     .map(|(name, data_type)| Topic { name, data_type })
                     .collect()
-            });
-        return result;
+            })
     }
 
+    #[allow(dead_code)]
     pub async fn lookup_node(&self, node_name: &str) -> Response<String> {
         self.client
             .request("lookupNode", &(&self.client_id, &node_name))

@@ -15,12 +15,16 @@ async fn main() {
     rosty::init("subscribe_examples").await.unwrap();
 
     // Subscribe to a topic
-    tokio::spawn(rosty::subscribe::<rosty_msg::rosgraph_msgs::Log>("/rosout", 1)
-        .await
-        .unwrap()
-        .for_each(|(_, message)| async move {
-            println!("{:?}", message);
-        }));
+    tokio::spawn(
+        rosty::subscribe::<rosty_msg::rosgraph_msgs::Log>("/rosout", 1)
+            .await
+            .unwrap()
+            .for_each(|(_, message)| {
+                async move {
+                    println!("{:?}", message);
+                }
+            }),
+    );
 
     // Run the node until it quits
     rosty::run().await;

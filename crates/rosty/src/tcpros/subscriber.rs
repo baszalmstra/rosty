@@ -75,9 +75,13 @@ pub struct Subscriber {
 pub type IncomingMessage<T> = (String, T);
 
 impl Subscriber {
-    pub fn new<T>(caller_id: &str, topic: &str, queue_size: usize) -> (Self, mpsc::Receiver<IncomingMessage<T>>)
+    pub fn new<T>(
+        caller_id: &str,
+        topic: &str,
+        queue_size: usize,
+    ) -> (Self, mpsc::Receiver<IncomingMessage<T>>)
     where
-        T: Message
+        T: Message,
     {
         let (mut topic_tx, topic_rx) = mpsc::channel(queue_size);
         let (data_tx, mut data_rx) = mpsc::channel(queue_size);
@@ -119,10 +123,13 @@ impl Subscriber {
                 while let Some(buffer) = data_rx.recv().await {
                     match RosMsg::decode_slice(&buffer.data) {
                         Ok(value) => {
-                            if let Err(e) = topic_tx.try_send(((*buffer.caller_id).clone(), value)) {
+                            if topic_tx
+                                .try_send(((*buffer.caller_id).clone(), value))
+                                .is_err()
+                            {
                                 error!("queue is full!");
                             }
-                        },
+                        }
                         Err(err) => error!("failed to decode message: {}", err),
                     }
                 }
@@ -130,25 +137,28 @@ impl Subscriber {
             .instrument(tracing::info_span!("handle_data", topic = topic)),
         );
 
-        (Subscriber {
-            publisher_tx,
-            connected_publishers: Default::default(),
-            topic: Topic {
-                name: topic.to_owned(),
-                data_type: T::msg_type(),
+        (
+            Subscriber {
+                publisher_tx,
+                connected_publishers: Default::default(),
+                topic: Topic {
+                    name: topic.to_owned(),
+                    data_type: T::msg_type(),
+                },
             },
-        }, topic_rx)
+            topic_rx,
+        )
     }
 
-    /// Returns the number of publishers
-    pub fn publisher_count(&self) -> usize {
-        self.connected_publishers.len()
-    }
+    // /// Returns the number of publishers
+    // pub fn publisher_count(&self) -> usize {
+    //     self.connected_publishers.len()
+    // }
 
-    /// Returns an iterator over all publishers
-    pub fn publishers(&self) -> impl Iterator<Item = String> + '_ {
-        self.connected_publishers.iter().cloned()
-    }
+    // /// Returns an iterator over all publishers
+    // pub fn publishers(&self) -> impl Iterator<Item = String> + '_ {
+    //     self.connected_publishers.iter().cloned()
+    // }
 
     /// Connect to node that publishes the subscribed topic
     pub async fn connect_to<U: ToSocketAddrs>(

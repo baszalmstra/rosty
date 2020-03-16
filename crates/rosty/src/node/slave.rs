@@ -5,12 +5,12 @@ use crate::node::error::SubscriptionError;
 use crate::node::shutdown_token::ShutdownToken;
 use crate::node::slave::subscriptions_tracker::SubscriptionsTracker;
 use crate::rosxmlrpc::{Params, Response, ResponseError, ServerBuilder, Value};
-use crate::tcpros::{Message, IncomingMessage};
+use crate::tcpros::{IncomingMessage, Message};
 use futures::future::TryFutureExt;
 use std::future::Future;
 use std::sync::Arc;
-use tracing_futures::Instrument;
 use tokio::sync::mpsc;
+use tracing_futures::Instrument;
 
 mod subscriptions_tracker;
 
@@ -145,11 +145,8 @@ impl Slave {
         &self,
         topic: &str,
         queue_size: usize,
-    ) -> Result<mpsc::Receiver<IncomingMessage<T>>, SubscriptionError>
-    {
-        self.subscriptions
-            .add(&self.name, topic, queue_size)
-            .await
+    ) -> Result<mpsc::Receiver<IncomingMessage<T>>, SubscriptionError> {
+        self.subscriptions.add(&self.name, topic, queue_size).await
     }
 
     /// Tell the slave that the specified `publishers` publish data to the given topic. The slave

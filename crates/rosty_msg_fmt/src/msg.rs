@@ -189,12 +189,12 @@ impl Msg {
     }
 }
 
-static IGNORE_WHITESPACE: &'static str = r"\s*";
-static ANY_WHITESPACE: &'static str = r"\s+";
-static FIELD_TYPE: &'static str = r"([a-zA-Z0-9_/]+)";
-static FIELD_NAME: &'static str = r"([a-zA-Z][a-zA-Z0-9_]*)";
-static EMPTY_BRACKETS: &'static str = r"\[\s*\]";
-static NUMBER_BRACKETS: &'static str = r"\[\s*([0-9]+)\s*\]";
+static IGNORE_WHITESPACE: &str = r"\s*";
+static ANY_WHITESPACE: &str = r"\s+";
+static FIELD_TYPE: &str = r"([a-zA-Z0-9_/]+)";
+static FIELD_NAME: &str = r"([a-zA-Z][a-zA-Z0-9_]*)";
+static EMPTY_BRACKETS: &str = r"\[\s*\]";
+static NUMBER_BRACKETS: &str = r"\[\s*([0-9]+)\s*\]";
 
 lazy_static! {
     static ref RESERVED_KEYWORDS: BTreeSet<String> = [
@@ -722,9 +722,9 @@ fn parse_datatype(datatype: &str) -> Option<DataType> {
             if parts.iter().any(|v| v.is_empty()) {
                 return None;
             }
-            match parts.as_slice() {
-                &[package, name] => Some(DataType::RemoteStruct(MessagePath::new(package, name))),
-                &[name] => Some(DataType::LocalStruct(name.into())),
+            match *parts.as_slice() {
+                [package, name] => Some(DataType::RemoteStruct(MessagePath::new(package, name))),
+                [name] => Some(DataType::LocalStruct(name.into())),
                 _ => None,
             }
         }

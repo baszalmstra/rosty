@@ -74,8 +74,12 @@ impl Node {
 
         // Construct the master API client
         let master = Master::new(&args.master_uri, &name, &slave.uri())?;
-        let result_mutex = Arc::new(Mutex::new(None));
 
+        // Get the URI of the master to check if the master is available
+        master.get_uri().await?;
+
+        // Start the slave
+        let result_mutex = Arc::new(Mutex::new(None));
         let join_handle_mutex = result_mutex.clone();
         tokio::spawn(async move {
             let mut mutex_guard = join_handle_mutex.lock().await;
@@ -133,8 +137,7 @@ impl Node {
         &self,
         topic: &str,
         queue_size: usize,
-    ) -> Result<Subscriber<T>, SubscriptionError>
-    {
+    ) -> Result<Subscriber<T>, SubscriptionError> {
         let queue_size = if queue_size == 0 {
             usize::max_value()
         } else {
@@ -146,7 +149,7 @@ impl Node {
             topic,
             queue_size,
         )
-            .instrument(tracing::info_span!("subscribe", topic = topic))
-            .await
+        .instrument(tracing::info_span!("subscribe", topic = topic))
+        .await
     }
 }

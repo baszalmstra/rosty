@@ -18,6 +18,8 @@ use crate::rosxmlrpc::Response;
 use crate::tcpros::Message;
 use node::{Node, NodeArgs};
 
+pub use time::{Duration, Time};
+
 /// The instance that represents this node.
 static NODE: Lazy<ShardedLock<Option<Node>>> = Lazy::new(|| ShardedLock::new(None));
 
@@ -58,6 +60,26 @@ macro_rules! node {
     };
 }
 
+/// Returns the URI of this node
+pub fn uri() -> String {
+    node!().uri().to_owned()
+}
+
+/// Returns the name of this node
+pub fn name() -> String {
+    node!().name().to_owned()
+}
+
+/// Returns the hostname of the node
+pub fn hostname() -> String {
+    node!().hostname().to_owned()
+}
+
+/// Returns the bind address of the node
+pub fn bind_address() -> String {
+    node!().bind_address().to_owned()
+}
+
 pub async fn topics() -> Response<Vec<Topic>> {
     node!().topics().await
 }
@@ -74,7 +96,6 @@ pub fn shutdown() {
 pub async fn subscribe<T: Message>(
     topic: &str,
     queue_size: usize,
-) -> Result<Subscriber<T>, SubscriptionError>
-{
+) -> Result<Subscriber<T>, SubscriptionError> {
     node!().subscribe::<T>(topic, queue_size).await
 }
