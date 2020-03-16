@@ -25,11 +25,11 @@ static NODE: Lazy<ShardedLock<Option<Node>>> = Lazy::new(|| ShardedLock::new(Non
 
 /// Initializes the ROS node
 pub async fn init<S: AsRef<str>>(default_name: S) -> Result<(), failure::Error> {
-    init_with_args(NodeArgs::new(default_name)).await
+    init_with_args(NodeArgs::new(default_name), true).await
 }
 
 /// Initializes the ROS node
-pub async fn init_with_args(args: NodeArgs) -> Result<(), failure::Error> {
+pub async fn init_with_args(args: NodeArgs, capture_sigint: bool) -> Result<(), failure::Error> {
     let mut singleton = NODE
         .write()
         .expect("Could not acquire write lock to singleton ROS node");
@@ -38,6 +38,14 @@ pub async fn init_with_args(args: NodeArgs) -> Result<(), failure::Error> {
     }
 
     let node = Node::new(args).await?;
+
+    if capture_sigint {
+        let shutdown_sender = node.shutdown_token.clone();
+        ctrlc::set_handler(move || {
+            shutdown_sender.shutdown();
+        })?;
+    }
+
     *singleton = Some(node);
 
     Ok(())

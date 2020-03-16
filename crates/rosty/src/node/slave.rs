@@ -115,7 +115,7 @@ impl Slave {
                     Some(Value::String(message)) => message,
                     _ => return Err(ResponseError::Client("Missing argument 'message'".into())),
                 };
-                info!("Server is shutting down because: {}", message);
+                info!("server is shutting down because: {}", message);
                 shutdown_signal.shutdown();
                 Ok(Value::Int(0))
             }

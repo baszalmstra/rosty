@@ -4,6 +4,7 @@ use futures::FutureExt;
 use std::future::Future;
 use std::net::SocketAddr;
 use tracing_futures::Instrument;
+use xmlrpc::Fault;
 
 /// Wraps an `xmlrpc::ServerBuilder` to hide the details of the ROS XMLRPC protocol.
 pub struct ServerBuilder {
@@ -12,9 +13,15 @@ pub struct ServerBuilder {
 
 impl ServerBuilder {
     pub fn new() -> Self {
-        ServerBuilder {
-            inner: xmlrpc::ServerBuilder::new(),
-        }
+        let mut builder = xmlrpc::ServerBuilder::new();
+        builder.set_on_missing(|params| {
+            async move {
+                error!(params=?params, "unhandled xmlrpc request");
+                Err(Fault::new(404, "Requested method does not exist"))
+            }
+        });
+
+        ServerBuilder { inner: builder }
     }
 
     /// Registers a XLMRPC call handler
