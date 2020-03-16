@@ -1,24 +1,25 @@
-use tracing::{Level};
+use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
 async fn main() {
-    // a builder for `FmtSubscriber`.
+    // Setup logging to the console
     let subscriber = FmtSubscriber::builder()
-        // all spans/events with a level higher than TRACE (e.g, debug, info, warn, etc.)
-        // will be written to stdout.
         .with_max_level(Level::TRACE)
-        // completes the builder.
         .finish();
 
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("setting default subscriber failed");
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
+    // Initialize a rosty node
     rosty::init("subscribe_examples").await.unwrap();
 
-    rosty::subscribe("/rosout", 1,|msg:rosty_msg::rosgraph_msgs::Log| {
+    // Subscribe to a topic
+    rosty::subscribe("/rosout", 1, |msg: rosty_msg::rosgraph_msgs::Log| {
         println!("{:?}", msg);
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
 
+    // Run the node until it quits
     rosty::run().await;
 }

@@ -1,14 +1,14 @@
 use async_std::net::ToSocketAddrs;
 use nix::unistd::getpid;
 
+use crate::node::error::SubscriptionError;
 use crate::node::shutdown_token::ShutdownToken;
-use crate::rosxmlrpc::{Params, ResponseError, ServerBuilder, Value, Response};
+use crate::node::slave::subscriptions_tracker::SubscriptionsTracker;
+use crate::rosxmlrpc::{Params, Response, ResponseError, ServerBuilder, Value};
+use crate::tcpros::Message;
 use futures::future::TryFutureExt;
 use std::future::Future;
-use crate::tcpros::Message;
-use crate::node::slave::subscriptions_tracker::SubscriptionsTracker;
 use std::sync::Arc;
-use crate::node::error::SubscriptionError;
 use tracing_futures::Instrument;
 
 mod subscriptions_tracker;
@@ -63,8 +63,8 @@ impl Slave {
             async { Ok(Value::String(master_uri)) }
         });
 
-        server.register_value("getPid", "PID", |_args| async {
-            Ok(Value::Int(getpid().into()))
+        server.register_value("getPid", "PID", |_args| {
+            async { Ok(Value::Int(getpid().into())) }
         });
 
         let name_string = String::from(name);
@@ -128,7 +128,7 @@ impl Slave {
             Slave {
                 name: name.to_owned(),
                 uri: format!("http://{}:{}/", hostname, addr.port()),
-                subscriptions
+                subscriptions,
             },
             server,
         ))
@@ -140,7 +140,12 @@ impl Slave {
     }
 
     /// Adds a new subscription to list of tracked subscriptions
-    pub async fn add_subscription<T, F>(&self, topic: &str, queue_size: usize, callback: F) -> Result<(), SubscriptionError>
+    pub async fn add_subscription<T, F>(
+        &self,
+        topic: &str,
+        queue_size: usize,
+        callback: F,
+    ) -> Result<(), SubscriptionError>
     where
         T: Message,
         F: Fn(T, &str) + Send + 'static,
@@ -152,9 +157,13 @@ impl Slave {
 
     /// Tell the slave that the specified `publishers` publish data to the given topic. The slave
     /// will try to connect to the publishers.
-    pub async fn add_publishers_to_subscription<T>(&self, topic: &str, publishers: T) -> Result<(), SubscriptionError>
+    pub async fn add_publishers_to_subscription<T>(
+        &self,
+        topic: &str,
+        publishers: T,
+    ) -> Result<(), SubscriptionError>
     where
-        T: Iterator<Item=String>,
+        T: Iterator<Item = String>,
     {
         self.subscriptions
             .add_publishers(topic, &self.name, publishers)

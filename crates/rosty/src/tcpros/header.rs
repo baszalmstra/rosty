@@ -1,9 +1,9 @@
+use super::read_packet;
 use rosty_msg::RosMsg;
 use std::collections::HashMap;
 use std::io;
 use std::io::Cursor;
 use tokio::io::AsyncWriteExt;
-use super::read_packet;
 
 #[derive(Fail, Debug)]
 pub enum InvalidHeaderError {

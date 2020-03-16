@@ -1,5 +1,6 @@
 use super::Message;
 use crate::tcpros::header;
+use crate::Topic;
 use futures::stream::StreamExt;
 use futures::TryFutureExt;
 use rosty_msg::RosMsg;
@@ -13,7 +14,6 @@ use tokio::net::TcpStream;
 use tokio::net::ToSocketAddrs;
 use tokio::sync::mpsc;
 use tracing_futures::Instrument;
-use crate::Topic;
 
 #[derive(Fail, Debug)]
 enum SubscriberError {
@@ -51,11 +51,16 @@ impl From<io::Error> for PublisherConnectError {
     }
 }
 
-struct MessageInfo {
+/// A struct with raw message info received from a publisher
+struct RawMessage {
+    /// The publisher that send the message
     caller_id: Arc<String>,
+
+    /// The data of the message
     data: Vec<u8>,
 }
 
+/// A subscriber on a ros topic. Manages connecting to publishers and receiving data from them.
 pub struct Subscriber {
     /// Sender end of a channel that receives updates about publishers
     publisher_tx: mpsc::Sender<SocketAddr>,
@@ -63,6 +68,7 @@ pub struct Subscriber {
     /// A set of publishers this subscriber is connecting or connected to.
     connected_publishers: BTreeSet<String>,
 
+    /// The topic that this `Subscriber` subscribes to
     topic: Topic,
 }
 
@@ -123,8 +129,8 @@ impl Subscriber {
             connected_publishers: Default::default(),
             topic: Topic {
                 name: topic.to_owned(),
-                data_type: T::msg_type()
-            }
+                data_type: T::msg_type(),
+            },
         }
     }
 
@@ -166,7 +172,7 @@ async fn connect_to_publisher<T: Message>(
     addr: SocketAddr,
     caller_id: String,
     topic: String,
-    mut data_tx: mpsc::Sender<MessageInfo>,
+    mut data_tx: mpsc::Sender<RawMessage>,
 ) -> Result<(), SubscriberError> {
     // Connect to the publisher
     let mut stream = TcpStream::connect(addr).await?;
@@ -186,7 +192,7 @@ async fn connect_to_publisher<T: Message>(
             match super::read_packet(&mut stream).await {
                 Ok(package) => {
                     if let Err(mpsc::error::TrySendError::Closed(_)) =
-                        data_tx.try_send(MessageInfo {
+                        data_tx.try_send(RawMessage {
                             caller_id: pub_caller_id.clone(),
                             data: package,
                         })

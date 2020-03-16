@@ -45,8 +45,17 @@ impl Master {
             .await
     }
 
-    pub async fn register_subscriber(&self, topic: &str, topic_type: &str) -> Response<Vec<String>> {
-        self.client.request("registerSubscriber", &(&self.client_id, topic, topic_type, &self.caller_api)).await
+    pub async fn register_subscriber(
+        &self,
+        topic: &str,
+        topic_type: &str,
+    ) -> Response<Vec<String>> {
+        self.client
+            .request(
+                "registerSubscriber",
+                &(&self.client_id, topic, topic_type, &self.caller_api),
+            )
+            .await
     }
 }
 

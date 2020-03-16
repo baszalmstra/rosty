@@ -97,16 +97,18 @@ impl ServerBuilder {
         Tef: (Fn(&Error) -> Response) + Send + Sync + Copy + 'static,
         Tdf: (Fn(&Error) -> Response) + Send + Sync + Copy + 'static,
     {
-        self.register_value_async(name, move |req| async move {
-            let params = match from_params(req) {
-                Ok(v) => v,
-                Err(err) => {
-                    let err = SyncFailure::new(err);
-                    return decode_fail(&err.into());
-                }
-            };
-            let response = handler(params).await?;
-            into_params(&response).or_else(|v| encode_fail(&SyncFailure::new(v).into()))
+        self.register_value_async(name, move |req| {
+            async move {
+                let params = match from_params(req) {
+                    Ok(v) => v,
+                    Err(err) => {
+                        let err = SyncFailure::new(err);
+                        return decode_fail(&err.into());
+                    }
+                };
+                let response = handler(params).await?;
+                into_params(&response).or_else(|v| encode_fail(&SyncFailure::new(v).into()))
+            }
         });
     }
 
