@@ -90,10 +90,11 @@ impl Subscriber {
         let caller_id = String::from(caller_id);
         let topic_name = String::from(topic);
 
+        let data_sender = data_tx.clone();
         tokio::spawn(
             async move {
                 while let Some(addr) = publisher_rx.next().await {
-                    let data_tx = data_tx.clone();
+                    let data_tx = data_sender.clone();
                     tokio::spawn(
                         connect_to_publisher::<T>(
                             addr,

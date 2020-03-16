@@ -74,6 +74,11 @@ impl SubscriptionsTracker {
             Some(err) => Err(err),
         }
     }
+
+    /// Removes the specified subscription
+    pub async fn remove(&self, topic: &str) {
+        self.mapping.lock().await.remove(topic);
+    }
 }
 
 async fn get_publisher_topic_info(

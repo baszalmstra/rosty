@@ -149,6 +149,11 @@ impl Slave {
         self.subscriptions.add(&self.name, topic, queue_size).await
     }
 
+    /// Removes the specified subscription
+    pub async fn remove_subscription(&self, topic: &str) {
+        self.subscriptions.remove(topic).await
+    }
+
     /// Tell the slave that the specified `publishers` publish data to the given topic. The slave
     /// will try to connect to the publishers.
     pub async fn add_publishers_to_subscription<T>(

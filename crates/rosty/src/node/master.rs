@@ -56,6 +56,15 @@ impl Master {
             )
             .await
     }
+
+    pub async fn unregister_subscriber(&self, topic: &str) -> Response<i32> {
+        self.client
+            .request(
+                "unregisterSubscriber",
+                &(&self.client_id, topic, &self.caller_api),
+            )
+            .await
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

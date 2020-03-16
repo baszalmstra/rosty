@@ -9,9 +9,9 @@ use std::task::{Context, Poll};
 use tokio::sync::mpsc;
 
 pub struct Subscriber<T: Message> {
-    _master: Arc<Master>,
-    _slave: Arc<Slave>,
-    _name: String,
+    master: Arc<Master>,
+    slave: Arc<Slave>,
+    name: String,
     channel: mpsc::Receiver<IncomingMessage<T>>,
 }
 
@@ -32,6 +32,8 @@ impl<T: Message> Subscriber<T> {
             .await
             .map_err(SubscriptionError::MasterCommunicationError)?;
 
+        info!(topic = name, "successfully registered subscriber");
+
         // Let the slave know which nodes are publishing data for the topic so that the slave will
         // connect to them to receive the data
         slave
@@ -39,9 +41,9 @@ impl<T: Message> Subscriber<T> {
             .await?;
 
         Ok(Self {
-            _master: master,
-            _slave: slave,
-            _name: name.to_owned(),
+            master,
+            slave,
+            name: name.to_owned(),
             channel,
         })
     }
@@ -52,5 +54,28 @@ impl<T: Message> Stream for Subscriber<T> {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.get_mut().channel.poll_recv(cx)
+    }
+}
+
+impl<T: Message> Drop for Subscriber<T> {
+    fn drop(&mut self) {
+        let name = self.name.clone();
+        let master = self.master.clone();
+        let slave = self.slave.clone();
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            runtime.spawn(async move {
+                slave.remove_subscription(&name).await;
+                match master.unregister_subscriber(&name).await {
+                    Err(e) => error!(
+                        topic = name.as_str(),
+                        "error unregistering subscriber with master: {}", e
+                    ),
+                    _ => info!(
+                        topic = name.as_str(),
+                        "successfully unregistered subscriber"
+                    ),
+                };
+            });
+        }
     }
 }
