@@ -61,6 +61,9 @@ impl Node {
         }
         let name = format!("{}/{}", namespace, name);
 
+        // Construct the master API client
+        let master = Arc::new(Master::new(&args.master_uri, &name)?);
+
         // Construct a slave XMLRPC server
         let (slave, slave_future) = Slave::new(
             &args.master_uri,
@@ -68,12 +71,10 @@ impl Node {
             &bind_host,
             0,
             &name,
+            master.clone(),
             shutdown_token.clone(),
         )
         .await?;
-
-        // Construct the master API client
-        let master = Master::new(&args.master_uri, &name, &slave.uri())?;
 
         // Get the URI of the master to check if the master is available
         master.get_uri().await?;
@@ -88,7 +89,7 @@ impl Node {
 
         Ok(Node {
             slave: Arc::new(slave),
-            master: Arc::new(master),
+            master,
             hostname: args.hostname.to_owned(),
             bind_address: bind_host.to_owned(),
             name,
@@ -143,13 +144,8 @@ impl Node {
         } else {
             queue_size
         };
-        Subscriber::new(
-            Arc::clone(&self.master),
-            Arc::clone(&self.slave),
-            topic,
-            queue_size,
-        )
-        .instrument(tracing::info_span!("subscribe", topic = topic))
-        .await
+        Subscriber::new(Arc::clone(&self.slave), topic, queue_size)
+            .instrument(tracing::info_span!("subscribe", topic = topic))
+            .await
     }
 }

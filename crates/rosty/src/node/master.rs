@@ -5,19 +5,13 @@ use crate::rosxmlrpc::Response;
 pub struct Master {
     client: rosxmlrpc::Client,
     client_id: String,
-    caller_api: String,
 }
 
 impl Master {
-    pub fn new(
-        master_uri: &str,
-        client_id: &str,
-        caller_api: &str,
-    ) -> Result<Self, failure::Error> {
+    pub fn new(master_uri: &str, client_id: &str) -> Result<Self, failure::Error> {
         Ok(Master {
             client: rosxmlrpc::Client::new(master_uri.parse()?),
             client_id: client_id.to_owned(),
-            caller_api: caller_api.to_owned(),
         })
     }
 
@@ -44,24 +38,29 @@ impl Master {
             .await
     }
 
+    /// Subscribe the caller to the specified topic. In addition to receiving a list of current
+    /// publishers, the subscriber will also receive notifications of new publishers via the
+    /// publisherUpdate API.
     pub async fn register_subscriber(
         &self,
         topic: &str,
         topic_type: &str,
+        caller_api: &str,
     ) -> Response<Vec<String>> {
         self.client
             .request(
                 "registerSubscriber",
-                &(&self.client_id, topic, topic_type, &self.caller_api),
+                &(&self.client_id, topic, topic_type, caller_api),
             )
             .await
     }
 
-    pub async fn unregister_subscriber(&self, topic: &str) -> Response<i32> {
+    /// Unregister the caller as a publisher of the topic
+    pub async fn unregister_subscriber(&self, topic: &str, caller_api: &str) -> Response<i32> {
         self.client
             .request(
                 "unregisterSubscriber",
-                &(&self.client_id, topic, &self.caller_api),
+                &(&self.client_id, topic, caller_api),
             )
             .await
     }

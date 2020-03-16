@@ -2,11 +2,13 @@ use async_std::net::ToSocketAddrs;
 use nix::unistd::getpid;
 
 use crate::node::error::SubscriptionError;
+use crate::node::master::Master;
 use crate::node::shutdown_token::ShutdownToken;
 use crate::node::slave::subscriptions_tracker::SubscriptionsTracker;
 use crate::rosxmlrpc::{Params, Response, ResponseError, ServerBuilder, Value};
 use crate::tcpros::{IncomingMessage, Message};
 use futures::future::TryFutureExt;
+use futures::StreamExt;
 use std::future::Future;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -26,6 +28,7 @@ fn unwrap_array_case(params: Params) -> Params {
 pub struct Slave {
     name: String,
     uri: String,
+    master: Arc<Master>,
     subscriptions: Arc<SubscriptionsTracker>,
 }
 
@@ -37,6 +40,7 @@ impl Slave {
         bind_address: &str,
         port: u16,
         name: &str,
+        master: Arc<Master>,
         shutdown_signal: ShutdownToken,
     ) -> Result<(Slave, impl Future<Output = Result<(), failure::Error>>), failure::Error> {
         let subscriptions = Arc::new(SubscriptionsTracker::default());
@@ -123,12 +127,34 @@ impl Slave {
 
         // Start listening for server requests
         let (server, addr) = server.bind(&addr, shutdown_signal.clone())?;
-        let server = tokio::spawn(server).unwrap_or_else(|e| Err(e.into()));
+        let uri = format!("http://{}:{}/", hostname, addr.port());
+
+        // Create a future that awaits the server shutdown and then performs cleanup
+        let subs = subscriptions.clone();
+        let master_clone = master.clone();
+        let caller_api = uri.clone();
+        let server = tokio::spawn(async move {
+            // Wait for the server to shut down
+            server.await?;
+
+            // Release all the subscriptions. Drain the subscription tracker and then tell the
+            // master about all the released subscriptions
+            let master = master_clone.as_ref();
+            futures::stream::iter(subs.remove_all().await.iter())
+                .for_each_concurrent(None, |topic| {
+                    unregister_subscriber(master, &topic, &caller_api)
+                })
+                .await;
+
+            Ok(())
+        })
+        .unwrap_or_else(|e| Err(e.into()));
 
         Ok((
             Slave {
                 name: name.to_owned(),
-                uri: format!("http://{}:{}/", hostname, addr.port()),
+                uri,
+                master,
                 subscriptions,
             },
             server,
@@ -146,17 +172,42 @@ impl Slave {
         topic: &str,
         queue_size: usize,
     ) -> Result<mpsc::Receiver<IncomingMessage<T>>, SubscriptionError> {
-        self.subscriptions.add(&self.name, topic, queue_size).await
+        // Add the subscriptions to the list of subscribers
+        let receiver = self
+            .subscriptions
+            .add(&self.name, topic, queue_size)
+            .await?;
+
+        // Notify the master that we are subscribing to the given topic. The master will return
+        // a list of publishers that publish to the topic we want to subscribe to.
+        let publishers = self
+            .master
+            .register_subscriber(topic, &T::msg_type(), self.uri())
+            .await
+            .map_err(SubscriptionError::MasterCommunicationError)?;
+
+        info!(topic = topic, "successfully registered subscriber");
+
+        // Let the slave know which nodes are publishing data for the topic so that the slave will
+        // connect to them to receive the data
+        self.add_publishers_to_subscription(topic, publishers.into_iter())
+            .await?;
+
+        Ok(receiver)
     }
 
     /// Removes the specified subscription
     pub async fn remove_subscription(&self, topic: &str) {
-        self.subscriptions.remove(topic).await
+        // Remove the subscription from the list of subscriptions
+        if self.subscriptions.remove(topic).await {
+            // Notify the master about the unsubscription
+            unregister_subscriber(&self.master, topic, self.uri()).await
+        }
     }
 
     /// Tell the slave that the specified `publishers` publish data to the given topic. The slave
     /// will try to connect to the publishers.
-    pub async fn add_publishers_to_subscription<T>(
+    async fn add_publishers_to_subscription<T>(
         &self,
         topic: &str,
         publishers: T,
@@ -168,4 +219,15 @@ impl Slave {
             .add_publishers(topic, &self.name, publishers)
             .await
     }
+}
+
+/// Unregister the given topic from the master and report on it
+async fn unregister_subscriber(master: &Master, topic: &str, caller_api: &str) {
+    match master.unregister_subscriber(&topic, caller_api).await {
+        Err(e) => error!(
+            topic = topic,
+            "error unregistering subscriber with master: {}", e
+        ),
+        _ => info!(topic = topic, "successfully unregistered subscriber"),
+    };
 }

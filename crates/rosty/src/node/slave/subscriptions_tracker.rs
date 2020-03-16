@@ -76,8 +76,13 @@ impl SubscriptionsTracker {
     }
 
     /// Removes the specified subscription
-    pub async fn remove(&self, topic: &str) {
-        self.mapping.lock().await.remove(topic);
+    pub async fn remove(&self, topic: &str) -> bool {
+        self.mapping.lock().await.remove(topic).is_some()
+    }
+
+    /// Removes all the subscriptions and returns an iterator of all the topics that were released.
+    pub async fn remove_all(&self) -> Vec<String> {
+        self.mapping.lock().await.drain().map(|(k, _)| k).collect()
     }
 }
 
