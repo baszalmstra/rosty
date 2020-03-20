@@ -16,8 +16,9 @@ pub use crate::node::Topic;
 use crate::node::{Subscriber, SubscriptionError};
 use crate::rosxmlrpc::Response;
 use crate::tcpros::Message;
-use node::{Node, NodeArgs};
+use node::{Node, NodeArgs, Param};
 
+use serde::Deserialize;
 pub use time::{Duration, Time};
 
 /// The instance that represents this node.
@@ -90,6 +91,25 @@ pub fn bind_address() -> String {
 
 pub async fn topics() -> Response<Vec<Topic>> {
     node!().topics().await
+}
+
+pub async fn param_names() -> Response<Vec<String>> {
+    node!().get_all_param_names().await
+}
+
+pub fn param(key: impl AsRef<str>) -> Param {
+    node!().param(key)
+}
+
+/// Find closest parameter name,
+/// starting in the private namespace and searching upwards to the global namespace.
+///If this code appears in the node /foo/bar, rospy.search_param will try to find the parameters:
+/// * /foo/bar/global_example
+/// * /foo/global_example
+/// * /global_example
+///in this order.
+pub async fn search_param<'a, T: Deserialize<'a>, S: AsRef<str>>(key: S) -> Response<T> {
+    node!().search_param(key.as_ref()).await
 }
 
 pub async fn run() {

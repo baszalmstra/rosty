@@ -11,11 +11,9 @@ fn subscribe() {
             rosty::subscribe::<rosty_msg::std_msgs::String>("/test_subscriber", 1)
                 .await
                 .unwrap()
-                .for_each(move |(_, message)| {
-                    async move {
-                        if &message.data == test_string {
-                            rosty::shutdown()
-                        }
+                .for_each(move |(_, message)| async move {
+                    if &message.data == test_string {
+                        rosty::shutdown()
                     }
                 }),
         );

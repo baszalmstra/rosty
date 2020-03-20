@@ -68,8 +68,8 @@ impl Slave {
             async { Ok(Value::String(master_uri)) }
         });
 
-        server.register_value("getPid", "PID", |_args| {
-            async { Ok(Value::Int(getpid().into())) }
+        server.register_value("getPid", "PID", |_args| async {
+            Ok(Value::Int(getpid().into()))
         });
 
         let name_string = String::from(name);
