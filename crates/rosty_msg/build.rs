@@ -84,7 +84,7 @@ fn main() {
     //        .collect::<Vec<String>>()
     //        .join(",");
     //
-    let file_content = format!("{}", contents);
+    let file_content = contents;
 
     fs::write(&file_name, &file_content).unwrap();
 
@@ -161,7 +161,7 @@ fn identify_message_or_service(filename: &Path) -> Option<MessageCase> {
 
     match extension.to_str() {
         Some("msg") => {
-            let msg = Msg::new(message.clone(), &contents).unwrap();
+            let msg = Msg::new(message, &contents).unwrap();
             Some(MessageCase::Message(msg))
         }
         Some("srv") => {
@@ -280,7 +280,7 @@ fn message_map_to_layout(
         let names = message_map
             .messages
             .iter()
-            .filter(|&(message, _value)| &message.package == &package)
+            .filter(|&(message, _value)| message.package == package)
             .map(|(message, _value)| message.name.clone())
             .collect::<HashSet<String>>();
         for name in names {

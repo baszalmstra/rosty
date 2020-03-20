@@ -1,7 +1,7 @@
 mod util;
 
 #[test]
-fn get_all_params() {
+fn test_parameter_api() {
     util::run_with_node(async {
         let parameters = rosty::param_names()
             .await
@@ -9,13 +9,8 @@ fn get_all_params() {
         assert!(
             parameters.len() > 0,
             "No parameters were found on the ROS master"
-        )
-    });
-}
+        );
 
-#[test]
-fn test_parameter_api() {
-    util::run_with_node(async {
         let param = rosty::param("test");
 
         // It should not exist when starting
@@ -48,6 +43,7 @@ fn test_parameter_api() {
         root_param.set(&20i32).await.unwrap();
 
         // Now search for this param, and check the value
-        assert_eq!(rosty::search_param::<i32, _>("baz").await.unwrap(), 20);
+        assert_eq!(root_param.get::<i32>().await.unwrap(), 20);
+        //assert_eq!(rosty::search_param::<i32, _>("baz").await.unwrap(), 20);
     });
 }
