@@ -17,10 +17,8 @@ async fn main() -> Result<(), failure::Error> {
     tokio::spawn(
         rosty::subscribe::<rosty_msg::rosgraph_msgs::Log>("/rosout", 1)
             .await?
-            .for_each(|(_, message)| {
-                async move {
-                    println!("{:?}", message);
-                }
+            .for_each(|(_, message)| async move {
+                println!("{:?}", message);
             }),
     );
 

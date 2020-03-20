@@ -14,11 +14,9 @@ pub struct ServerBuilder {
 impl ServerBuilder {
     pub fn new() -> Self {
         let mut builder = xmlrpc::ServerBuilder::new();
-        builder.set_on_missing(|params| {
-            async move {
-                error!(params=?params, "unhandled xmlrpc request");
-                Err(Fault::new(404, "Requested method does not exist"))
-            }
+        builder.set_on_missing(|params| async move {
+            error!(params=?params, "unhandled xmlrpc request");
+            Err(Fault::new(404, "Requested method does not exist"))
         });
 
         ServerBuilder { inner: builder }

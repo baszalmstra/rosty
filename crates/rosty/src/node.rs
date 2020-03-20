@@ -20,7 +20,51 @@ pub use self::error::SubscriptionError;
 pub use self::subscriber::Subscriber;
 use crate::tcpros::Message;
 pub use master::Topic;
+use serde::{Deserialize, Serialize};
 use tracing_futures::Instrument;
+
+/// Represents a param on the parameter server
+pub struct Param {
+    name: String,
+    master: Arc<Master>,
+}
+
+impl Param {
+    fn new(name: impl AsRef<str>, master: Arc<Master>) -> Param {
+        Param {
+            name: name.as_ref().to_string(),
+            master,
+        }
+    }
+
+    /// Get the value from the parameter server
+    pub async fn get<'a, T: Deserialize<'a>>(&self) -> Response<T> {
+        self.master.get_param(&self.name).await
+    }
+
+    /// Set the value on the ROS parameter server
+    pub async fn set<T: Serialize>(&self, value: &T) -> Response<()> {
+        self.master
+            .set_param(&self.name, value)
+            .await
+            // We can ignore the i32, because the ROS standard says it is ignorable
+            .map(|_val: i32| ())
+    }
+
+    /// Delete the parameter from the ROS parameter server
+    pub async fn delete(&self) -> Response<()> {
+        self.master
+            .delete_param(&self.name)
+            .await
+            // We can ignore the i32, because the ROS standard says it is ignorable
+            .map(|_val: i32| ())
+    }
+
+    /// Check if this parameter already exists on the ROS parameter server
+    pub async fn exists(&self) -> Response<bool> {
+        self.master.has_param(&self.name).await
+    }
+}
 
 /// Represents a ROS node.
 ///
@@ -131,6 +175,20 @@ impl Node {
     /// Returns a list of all topics
     pub async fn topics(&self) -> Response<Vec<Topic>> {
         self.master.get_topic_types().await
+    }
+
+    /// Returns a list of all parameter names
+    pub async fn get_all_param_names(&self) -> Response<Vec<String>> {
+        self.master.get_all_param_names().await
+    }
+
+    /// Return a parameter
+    pub fn param(&self, key: impl AsRef<str>) -> Param {
+        Param::new(key.as_ref(), self.master.clone())
+    }
+
+    pub async fn search_param<'a, T: Deserialize<'a>>(&self, key: impl AsRef<str>) -> Response<T> {
+        self.master.search_param(key.as_ref()).await
     }
 
     /// Connect to a topic

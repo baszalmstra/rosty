@@ -94,13 +94,11 @@ async fn get_publisher_topic_info(
     let publisher_result = publisher.clone();
     request_topic(publisher, name, topic)
         .map_err(SubscriptionError::RequestTopicError)
-        .and_then(|(protocol, hostname, port)| {
-            async move {
-                if protocol != "TCPROS" {
-                    return Err(SubscriptionError::ProtocolMismatch(protocol));
-                }
-                Ok((publisher_result, hostname, port))
+        .and_then(|(protocol, hostname, port)| async move {
+            if protocol != "TCPROS" {
+                return Err(SubscriptionError::ProtocolMismatch(protocol));
             }
+            Ok((publisher_result, hostname, port))
         })
         .await
 }
