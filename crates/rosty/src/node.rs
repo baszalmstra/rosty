@@ -1,26 +1,31 @@
 mod args;
 mod error;
 mod master;
-mod shutdown_token;
+mod publisher;
 mod slave;
 mod subscriber;
 mod topic;
 
 pub use args::NodeArgs;
 use master::Master;
-use shutdown_token::ShutdownToken;
 use slave::Slave;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::rosxmlrpc::Response;
-
-pub use self::error::SubscriptionError;
-pub use self::subscriber::Subscriber;
-use crate::simtime::SimTime;
-use crate::tcpros::Message;
-use crate::Duration;
+pub use self::{
+    subscriber::Subscriber,
+    error::SubscriptionError,
+    publisher::{Publisher}
+};
+pub use crate::tcpros::PublisherError;
+use crate::{
+    shutdown_token::ShutdownToken,
+    Duration,
+    simtime::SimTime,
+    rosxmlrpc::Response,
+    tcpros::{Message}
+};
 pub use master::Topic;
 use serde::{Deserialize, Serialize};
 use tracing_futures::Instrument;
@@ -236,5 +241,19 @@ impl Node {
         Subscriber::new(Arc::clone(&self.slave), topic, queue_size)
             .instrument(tracing::info_span!("subscribe", topic = topic))
             .await
+    }
+
+    pub async fn publish<T: Message>(
+        &self,
+        topic: &str,
+        queue_size: usize,
+    ) -> Result<Publisher<T>, PublisherError>
+    {
+        let queue_size = if queue_size == 0 {
+            usize::max_value()
+        } else {
+            queue_size
+        };
+        Publisher::new(Arc::clone(&self.slave), &self.hostname, topic, queue_size).await
     }
 }

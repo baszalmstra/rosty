@@ -12,12 +12,15 @@ mod rosxmlrpc;
 mod simtime;
 mod tcpros;
 mod time;
+mod shutdown_token;
 
 pub use crate::node::Topic;
 use crate::node::{Subscriber, SubscriptionError};
 use crate::rosxmlrpc::Response;
-use crate::tcpros::Message;
+use crate::tcpros::{Message};
+use crate::node::{Publisher, PublisherError};
 use node::{Node, NodeArgs, Param};
+
 
 use serde::Deserialize;
 use std::time::SystemTime;
@@ -148,6 +151,10 @@ pub fn shutdown() {
     node!().shutdown_token.shutdown();
 }
 
+pub fn is_awaiting_shutdown() -> bool {
+    node!().shutdown_token.is_awaiting_shutdown()
+}
+
 /// Connect to a topic
 pub async fn subscribe<T: Message>(
     topic: &str,
@@ -155,3 +162,8 @@ pub async fn subscribe<T: Message>(
 ) -> Result<Subscriber<T>, SubscriptionError> {
     node!().subscribe::<T>(topic, queue_size).await
 }
+
+pub async fn publish<T: Message>(
+    topic: &str,
+    queue_size: usize
+) -> Result<Publisher<T>, PublisherError> { node!().publish(topic, queue_size).await }

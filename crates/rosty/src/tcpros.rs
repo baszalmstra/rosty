@@ -1,11 +1,13 @@
 mod header;
 mod subscriber;
+mod publisher;
 
 use byteorder::{LittleEndian, WriteBytesExt};
 pub use rosty_msg::Message;
 use std::io;
 use std::io::Cursor;
 pub use subscriber::{IncomingMessage, PublisherConnectError, Subscriber};
+pub use publisher::{Publisher, PublisherError, PublisherSendError, PublisherStream};
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
 

@@ -1,12 +1,12 @@
-use async_std::net::ToSocketAddrs;
 use nix::unistd::getpid;
 
 use crate::node::error::SubscriptionError;
 use crate::node::master::Master;
-use crate::node::shutdown_token::ShutdownToken;
+use crate::node::slave::publications_tracker::PublicationsTracker;
 use crate::node::slave::subscriptions_tracker::SubscriptionsTracker;
 use crate::rosxmlrpc::{Params, Response, ResponseError, ServerBuilder, Value};
-use crate::tcpros::{IncomingMessage, Message};
+use crate::shutdown_token::ShutdownToken;
+use crate::tcpros::{IncomingMessage, Message, PublisherError, PublisherStream};
 use futures::future::TryFutureExt;
 use futures::StreamExt;
 use std::future::Future;
@@ -14,6 +14,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing_futures::Instrument;
 
+mod publications_tracker;
 mod subscriptions_tracker;
 
 fn unwrap_array_case(params: Params) -> Params {
@@ -30,6 +31,7 @@ pub struct Slave {
     uri: String,
     master: Arc<Master>,
     subscriptions: Arc<SubscriptionsTracker>,
+    publications: Arc<PublicationsTracker>,
 }
 
 impl Slave {
@@ -44,20 +46,14 @@ impl Slave {
         shutdown_signal: ShutdownToken,
     ) -> Result<(Slave, impl Future<Output = Result<(), failure::Error>>), failure::Error> {
         let subscriptions = Arc::new(SubscriptionsTracker::default());
+        let publications = Arc::new(PublicationsTracker::default());
 
         // Resolve the hostname to an address. 0 for the port indicates that the slave can bind to
         // any port that is available
-        let addr = format!("{}:{}", bind_address, port)
-            .to_socket_addrs()
+        let addr = tokio::net::lookup_host((bind_address, port))
             .await?
             .next()
-            .ok_or_else(|| {
-                failure::format_err!(
-                    "Could not resolve '{}:{}' to a valid socket address",
-                    bind_address,
-                    port
-                )
-            })?;
+            .ok_or_else(|| format_err!("could not resolve hostname"))?;
 
         // Construct the server and bind it to the address
         let mut server = ServerBuilder::new();
@@ -107,6 +103,51 @@ impl Slave {
             }
         });
 
+        let pubs = publications.clone();
+        let hostname_string = String::from(hostname);
+        server.register_value("requestTopic", "Chosen protocol", move |args| {
+            let pubs = pubs.clone();
+            let hostname_string = hostname_string.clone();
+            async move {
+                let mut args = unwrap_array_case(args).into_iter();
+                let _caller_id = args.next().ok_or_else(|| ResponseError::Client("missing argument 'caller_id'".into()))?;
+                let topic = match args.next() {
+                    Some(Value::String(topic)) => topic,
+                    _ => return Err(ResponseError::Client("missing argument 'topic'".into()))
+                };
+                let protocols = match args.next() {
+                    Some(Value::Array(protocols)) => protocols,
+                    Some(_) => {
+                        return Err(ResponseError::Client("protocols need to be provided as [[String, XmlRpcLegalValue]]".into()))
+                    }
+                    None => return Err(ResponseError::Client("missing argument 'protocols'".into())),
+                };
+                let port = pubs.get_port(&topic).await.ok_or_else(|| {
+                    ResponseError::Client("requested topic not published by node".into())
+                })?;
+                let ip = hostname_string.clone();
+                let mut has_tcpros = protocols.iter().any(|p| {
+                    if let Value::Array(protocol) = p {
+                        if let Some(&Value::String(ref name)) = protocol.get(0) {
+                            return name == "TCPROS";
+                        }
+                    }
+                    false
+                });
+                if has_tcpros {
+                    Ok(Value::Array(vec![
+                        Value::String("TCPROS".into()),
+                        Value::String(ip),
+                        Value::Int(port as i32),
+                    ]))
+                } else {
+                    Err(ResponseError::Server(
+                        "no matching protocols available".into()
+                    ))
+                }
+            }
+        });
+
         let rpc_shutdown_signal = shutdown_signal.clone();
         server.register_value("shutdown", "Shutdown", move |args| {
             let shutdown_signal = rpc_shutdown_signal.clone();
@@ -131,20 +172,26 @@ impl Slave {
 
         // Create a future that awaits the server shutdown and then performs cleanup
         let subs = subscriptions.clone();
+        let pubs = publications.clone();
         let master_clone = master.clone();
         let caller_api = uri.clone();
         let server = tokio::spawn(async move {
             // Wait for the server to shut down
             server.await?;
 
-            // Release all the subscriptions. Drain the subscription tracker and then tell the
-            // master about all the released subscriptions
+            // Release all the subscriptions and publications. Drain the trackers and then tell the
+            // master about all the released subscriptions/publications
             let master = master_clone.as_ref();
-            futures::stream::iter(subs.remove_all().await.iter())
+
+            let unsub_subscribers = futures::stream::iter(subs.remove_all().await.iter())
                 .for_each_concurrent(None, |topic| {
                     unregister_subscriber(master, &topic, &caller_api)
-                })
-                .await;
+                }).await;
+
+            let unsub_publishers = futures::stream::iter(pubs.remove_all().await.iter())
+                .for_each_concurrent(None, |topic| {
+                    unregister_publisher(master, &topic, &caller_api)
+                }).await;
 
             Ok(())
         })
@@ -156,6 +203,7 @@ impl Slave {
                 uri,
                 master,
                 subscriptions,
+                publications,
             },
             server,
         ))
@@ -219,6 +267,41 @@ impl Slave {
             .add_publishers(topic, &self.name, publishers)
             .await
     }
+
+    pub async fn add_publication<T>(
+        &self,
+        hostname: &str,
+        topic: &str,
+        queue_size: usize,
+    ) -> Result<PublisherStream<T>, PublisherError>
+    where
+        T: Message,
+    {
+        // Create the publisher object to be able to actually publish data
+        let publisher = self
+            .publications
+            .add(hostname, topic, queue_size, &self.name)
+            .await?;
+
+        // Register the publisher with the master
+        self.master
+            .register_publisher(topic, &T::msg_type(), &self.uri)
+            .await
+            .map_err(PublisherError::RegistrationError)?;
+
+        info!(topic = topic, "successfully registered publisher");
+
+        Ok(publisher)
+    }
+
+    /// Removes the specified publisher
+    pub async fn remove_publisher(&self, topic: &str) {
+        // Remove the publisher from the list of publications
+        if self.publications.remove(topic).await {
+            // Notify the master about the unsubscription
+            unregister_publisher(&self.master, topic, self.uri()).await
+        }
+    }
 }
 
 /// Unregister the given topic from the master and report on it
@@ -229,5 +312,16 @@ async fn unregister_subscriber(master: &Master, topic: &str, caller_api: &str) {
             "error unregistering subscriber with master: {}", e
         ),
         _ => info!(topic = topic, "successfully unregistered subscriber"),
+    };
+}
+
+/// Unregister the given topic from the master and report on it
+async fn unregister_publisher(master: &Master, topic: &str, caller_api: &str) {
+    match master.unregister_publisher(&topic, caller_api).await {
+        Err(e) => error!(
+            topic = topic,
+            "error unregistering publisher from master: {}", e
+        ),
+        _ => info!(topic = topic, "successfully unregistered publisher"),
     };
 }
