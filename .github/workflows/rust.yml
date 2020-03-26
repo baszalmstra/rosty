@@ -1,0 +1,27 @@
+name: Rust
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build-lint-test:
+    container:
+      image: ubuntu:bionic
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: ros-tooling/setup-ros@master
+      with:
+        required-ros-distributions: melodic
+    - name: Install stable toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+    - name: Build, lint & Test Rosty
+      run: bash ./.ci/ci.bash
