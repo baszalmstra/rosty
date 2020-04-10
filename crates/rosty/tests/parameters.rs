@@ -1,4 +1,4 @@
-mod util;
+pub mod util;
 
 #[test]
 fn test_parameter_api() {
@@ -27,6 +27,12 @@ fn test_parameter_api() {
 
         // And it should be changed
         assert_eq!(param.get::<i32>().await.unwrap(), 10);
+
+        // Change it to a boolean
+        // param.set(&true).await.unwrap();
+
+        // And this should return true
+        // assert!(param.get::<bool>().await.unwrap());
 
         // Delete this parameter
         param.delete().await.unwrap();

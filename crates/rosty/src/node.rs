@@ -18,7 +18,9 @@ use crate::rosxmlrpc::Response;
 
 pub use self::error::SubscriptionError;
 pub use self::subscriber::Subscriber;
+use crate::simtime::SimTime;
 use crate::tcpros::Message;
+use crate::Duration;
 pub use master::Topic;
 use serde::{Deserialize, Serialize};
 use tracing_futures::Instrument;
@@ -79,6 +81,7 @@ pub struct Node {
     bind_address: String,
     name: String,
     result: Arc<Mutex<Option<Result<(), failure::Error>>>>,
+    sim_time: Option<SimTime>,
     pub shutdown_token: ShutdownToken,
 }
 
@@ -131,6 +134,20 @@ impl Node {
             *mutex_guard = Some(tokio::try_join!(slave_future).map(|_| ()))
         });
 
+        // Check if we need to use simtime
+        let param = Param::new("/use_sim_time", master.clone());
+
+        // Try to get the sim_time, and open a topic if we are waiting for it
+        let sim_time = if param.exists().await? {
+            if param.get::<bool>().await? {
+                Some(SimTime::new())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         Ok(Node {
             slave: Arc::new(slave),
             master,
@@ -139,7 +156,19 @@ impl Node {
             name,
             result: result_mutex,
             shutdown_token,
+            sim_time,
         })
+    }
+
+    /// Initializes the receiving of the simulated time
+    /// This function panics if the '/use_sim_time'
+    /// parameter was not found
+    pub async fn init_sim_time(&self) -> Result<(), SubscriptionError> {
+        self.sim_time
+            .as_ref()
+            .expect("SimTime was None, this means the /use_sim_time topic was not found")
+            .init(self)
+            .await
     }
 
     /// Returns the URI of this node
@@ -170,6 +199,16 @@ impl Node {
                 return;
             }
         }
+    }
+
+    /// Returns true if this node is using the simulated time
+    pub fn is_using_sim_time(&self) -> bool {
+        self.sim_time.is_some()
+    }
+
+    /// Returns the last simulated clock if it is available
+    pub fn get_last_sim_clock(&self) -> Option<Duration> {
+        self.sim_time.as_ref()?.duration()
     }
 
     /// Returns a list of all topics
