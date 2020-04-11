@@ -102,7 +102,7 @@ pub fn run_with_node_simtime(generator: impl Future<Output = ()>) {
         // Use the sim time
         set_use_sim_time().expect("Cannot set the simtime parameter");
         // Wait for the param to actually be set
-        tokio::time::delay_for(time::Duration::from_millis(100)).await;
+        tokio::time::delay_for(time::Duration::from_millis(1000)).await;
         rosty::init("test").await.unwrap();
         generator.await;
     })
