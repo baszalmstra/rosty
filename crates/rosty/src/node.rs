@@ -138,12 +138,8 @@ impl Node {
         let param = Param::new("/use_sim_time", master.clone());
 
         // Try to get the sim_time, and open a topic if we are waiting for it
-        let sim_time = if param.exists().await? {
-            if param.get::<bool>().await? {
-                Some(SimTime::new())
-            } else {
-                None
-            }
+        let sim_time = if param.exists().await? && param.get::<bool>().await? {
+            Some(SimTime::new())
         } else {
             None
         };
