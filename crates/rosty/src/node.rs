@@ -156,8 +156,8 @@ impl Node {
         };
 
         // Initialize sim time if we are using it
-        if node.sim_time.is_some() {
-            node.sim_time.as_ref().unwrap().init(&node).await?;
+        if let Some(sim_time) = &node.sim_time {
+            sim_time.init(&node).await?;
         }
 
         Ok(node)
