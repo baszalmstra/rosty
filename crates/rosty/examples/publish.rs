@@ -20,7 +20,7 @@ async fn main() -> Result<(), failure::Error> {
         let mut msg = rosty_msg::std_msgs::String::default();
         msg.data = format!("Hello, timmie! {}", counter);
         counter += 1;
-        publisher.send(&msg).await.unwrap();
+        publisher.send(msg).await.unwrap();
         tokio::time::delay_for(Duration::from_millis(1)).await;
     }
 

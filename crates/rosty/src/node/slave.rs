@@ -183,12 +183,12 @@ impl Slave {
             // master about all the released subscriptions/publications
             let master = master_clone.as_ref();
 
-            let unsub_subscribers = futures::stream::iter(subs.remove_all().await.iter())
+            futures::stream::iter(subs.remove_all().await.iter())
                 .for_each_concurrent(None, |topic| {
                     unregister_subscriber(master, &topic, &caller_api)
                 }).await;
 
-            let unsub_publishers = futures::stream::iter(pubs.remove_all().await.iter())
+            futures::stream::iter(pubs.remove_all().await.iter())
                 .for_each_concurrent(None, |topic| {
                     unregister_publisher(master, &topic, &caller_api)
                 }).await;

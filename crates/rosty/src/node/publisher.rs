@@ -1,11 +1,15 @@
 use crate::tcpros::{PublisherStream, Message, PublisherError, PublisherSendError};
 use crate::node::slave::Slave;
 use std::sync::Arc;
+use crate::node::clock::Clock;
+use failure::_core::sync::atomic::{AtomicUsize, Ordering};
 
+#[derive(Clone)]
 pub struct Publisher<T: Message> {
-    slave: Arc<Slave>,
-    name: String,
-    stream: PublisherStream<T>
+    _info: Arc<PublisherInfo>,
+    stream: PublisherStream<T>,
+    clock: Arc<Clock>,
+    seq: Arc<AtomicUsize>
 }
 
 impl<T: Message> Publisher<T> {
@@ -13,24 +17,38 @@ impl<T: Message> Publisher<T> {
         slave: Arc<Slave>,
         hostname: &str,
         topic: &str,
-        queue_size: usize
+        queue_size: usize,
+        clock: Arc<Clock>,
     ) -> Result<Self, PublisherError> {
         // Register the subscription with the slave
         let stream = slave.add_publication::<T>(hostname, topic, queue_size).await?;
 
         Ok(Self {
-            slave,
-            name: topic.to_owned(),
-            stream
+            _info: Arc::new(PublisherInfo {
+                name: topic.to_owned(),
+                slave
+            }),
+            clock,
+            stream,
+            seq: Arc::new(AtomicUsize::new(0))
         })
     }
 
-    pub async fn send(&self, message: &T) -> Result<(), PublisherSendError> {
+    pub async fn send(&self, mut message: T) -> Result<(), PublisherSendError> {
+        if let Some(header) = message.header_mut() {
+            header.stamp = self.clock.now().expect("missing clock time");
+            header.seq = self.seq.fetch_add(1, Ordering::AcqRel) as u32
+        }
         self.stream.send(message).await
     }
 }
 
-impl<T: Message> Drop for Publisher<T> {
+struct PublisherInfo {
+    name: String,
+    slave: Arc<Slave>,
+}
+
+impl Drop for PublisherInfo {
     fn drop(&mut self) {
         let name = self.name.clone();
         let slave = self.slave.clone();

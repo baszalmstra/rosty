@@ -4,14 +4,12 @@ use crate::shutdown_token::ShutdownToken;
 use crate::tcpros::Message;
 use crate::Topic;
 use failure::_core::marker::PhantomData;
-use futures::{FutureExt, StreamExt, TryFutureExt};
+use futures::{StreamExt};
 use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::broadcast::{self, RecvError};
 use tracing_futures::Instrument;
-use futures::io::Error;
 
 #[derive(Debug, Fail)]
 pub enum PublisherError {
@@ -143,7 +141,7 @@ impl Publisher {
 
     pub fn stream<T: Message>(
         &self,
-        queue_size: usize,
+        _queue_size: usize,
     ) -> Result<PublisherStream<T>, PublisherError> {
         let stream = PublisherStream {
             datatype: PhantomData::default(),
@@ -235,13 +233,14 @@ async fn write_handshake_response<T: Message, U: AsyncWrite + Unpin>(
         .map_err(Into::into)
 }
 
+#[derive(Clone)]
 pub struct PublisherStream<T: Message> {
     datatype: PhantomData<T>,
     sender: broadcast::Sender<Vec<u8>>
 }
 
 impl<T: Message> PublisherStream<T> {
-    pub async fn send(&self, message: &T) -> Result<(), PublisherSendError> {
+    pub async fn send(&self, message: T) -> Result<(), PublisherSendError> {
         let bytes = message.encode_vec().map_err(PublisherSendError::EncodingError)?;
 
         // TODO: latching??
