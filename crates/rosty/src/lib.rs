@@ -9,19 +9,18 @@ extern crate tracing;
 
 mod node;
 mod rosxmlrpc;
-mod simtime;
+mod shutdown_token;
 mod tcpros;
-mod time;
 
 pub use crate::node::Topic;
+use crate::node::{Publisher, PublisherError};
 use crate::node::{Subscriber, SubscriptionError};
 use crate::rosxmlrpc::Response;
 use crate::tcpros::Message;
 use node::{Node, NodeArgs, Param};
 
+use rosty_msg::Time;
 use serde::Deserialize;
-use std::time::SystemTime;
-pub use time::{Duration, Time};
 
 /// The instance that represents this node.
 static NODE: Lazy<ShardedLock<Option<Node>>> = Lazy::new(|| ShardedLock::new(None));
@@ -78,18 +77,8 @@ macro_rules! node {
 /// * If the node is run in simulated time i.e. `/use_sim_time` is true. Then the simulated
 ///   time is returned. In this case a panic could occur if the `/clock` topic has not
 ///   been published
-pub fn now() -> Duration {
-    if !node!().is_using_sim_time() {
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("Could not get the SystemTime")
-            .into()
-    } else {
-        node!()
-            .get_last_sim_clock()
-            .expect("No /clock message received")
-            .into()
-    }
+pub fn now() -> Time {
+    node!().now().expect("clock is not yet available")
 }
 
 /// Returns the URI of this node
@@ -148,10 +137,21 @@ pub fn shutdown() {
     node!().shutdown_token.shutdown();
 }
 
+pub fn is_awaiting_shutdown() -> bool {
+    node!().shutdown_token.is_awaiting_shutdown()
+}
+
 /// Connect to a topic
 pub async fn subscribe<T: Message>(
     topic: &str,
     queue_size: usize,
 ) -> Result<Subscriber<T>, SubscriptionError> {
     node!().subscribe::<T>(topic, queue_size).await
+}
+
+pub async fn publish<T: Message>(
+    topic: &str,
+    queue_size: usize,
+) -> Result<Publisher<T>, PublisherError> {
+    node!().publish(topic, queue_size).await
 }

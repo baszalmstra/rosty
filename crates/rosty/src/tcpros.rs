@@ -1,7 +1,9 @@
 mod header;
+mod publisher;
 mod subscriber;
 
 use byteorder::{LittleEndian, WriteBytesExt};
+pub use publisher::{Publisher, PublisherError, PublisherSendError, PublisherStream};
 pub use rosty_msg::Message;
 use std::io;
 use std::io::Cursor;

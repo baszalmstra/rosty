@@ -1,14 +1,13 @@
 use crate::node::{Node, SubscriptionError};
 
-use crate::Duration;
 use futures::StreamExt;
-use rosty_msg::rosgraph_msgs::Clock;
+use rosty_msg::Time;
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]
 /// The Simulated Time struct, holds a reference to the last message received on the clock interface
 pub struct SimTime {
-    last_clock_msg: Arc<RwLock<Option<Clock>>>,
+    last_clock_msg: Arc<RwLock<Option<Time>>>,
 }
 
 impl SimTime {
@@ -28,7 +27,7 @@ impl SimTime {
                 // Set the last variable as a member
                 async move {
                     let mut guard = local.write().unwrap();
-                    *guard = Some(clock_msg);
+                    *guard = Some(clock_msg.clock);
                 }
             });
 
@@ -37,8 +36,7 @@ impl SimTime {
     }
 
     /// Returns the last received time
-    pub fn duration(&self) -> Option<Duration> {
-        let message = self.last_clock_msg.read().unwrap().clone();
-        message.and_then(|message| Some(message.into()))
+    pub fn now(&self) -> Option<Time> {
+        self.last_clock_msg.read().unwrap().map(Into::into)
     }
 }

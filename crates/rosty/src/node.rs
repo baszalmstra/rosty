@@ -1,29 +1,30 @@
 mod args;
+mod clock;
 mod error;
 mod master;
-mod shutdown_token;
+mod publisher;
+mod simtime;
 mod slave;
 mod subscriber;
 mod topic;
 
 pub use args::NodeArgs;
 use master::Master;
-use shutdown_token::ShutdownToken;
 use slave::Slave;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::rosxmlrpc::Response;
-
-pub use self::error::SubscriptionError;
-pub use self::subscriber::Subscriber;
-use crate::simtime::SimTime;
-use crate::tcpros::Message;
-use crate::Duration;
+pub use self::{error::SubscriptionError, publisher::Publisher, subscriber::Subscriber};
+pub use crate::tcpros::PublisherError;
+use crate::{rosxmlrpc::Response, shutdown_token::ShutdownToken, tcpros::Message};
 pub use master::Topic;
 use serde::{Deserialize, Serialize};
 use tracing_futures::Instrument;
+
+use clock::Clock;
+use rosty_msg::Time;
+use simtime::SimTime;
 
 /// Represents a param on the parameter server
 pub struct Param {
@@ -81,7 +82,7 @@ pub struct Node {
     bind_address: String,
     name: String,
     result: Arc<Mutex<Option<Result<(), failure::Error>>>>,
-    sim_time: Option<SimTime>,
+    clock: Arc<Clock>,
     pub shutdown_token: ShutdownToken,
 }
 
@@ -144,6 +145,8 @@ impl Node {
             None
         };
 
+        let clock = Arc::new(Clock { sim_time });
+
         let node = Node {
             slave: Arc::new(slave),
             master,
@@ -152,13 +155,10 @@ impl Node {
             name,
             result: result_mutex,
             shutdown_token,
-            sim_time,
+            clock,
         };
 
-        // Initialize sim time if we are using it
-        if let Some(sim_time) = &node.sim_time {
-            sim_time.init(&node).await?;
-        }
+        node.clock.init(&node).await?;
 
         Ok(node)
     }
@@ -195,12 +195,12 @@ impl Node {
 
     /// Returns true if this node is using the simulated time
     pub fn is_using_sim_time(&self) -> bool {
-        self.sim_time.is_some()
+        self.clock.is_using_sim_time()
     }
 
-    /// Returns the last simulated clock if it is available
-    pub fn get_last_sim_clock(&self) -> Option<Duration> {
-        self.sim_time.as_ref()?.duration()
+    /// Returns the last time if its available
+    pub fn now(&self) -> Option<Time> {
+        self.clock.now()
     }
 
     /// Returns a list of all topics
@@ -236,5 +236,25 @@ impl Node {
         Subscriber::new(Arc::clone(&self.slave), topic, queue_size)
             .instrument(tracing::info_span!("subscribe", topic = topic))
             .await
+    }
+
+    pub async fn publish<T: Message>(
+        &self,
+        topic: &str,
+        queue_size: usize,
+    ) -> Result<Publisher<T>, PublisherError> {
+        let queue_size = if queue_size == 0 {
+            usize::max_value()
+        } else {
+            queue_size
+        };
+        Publisher::new(
+            Arc::clone(&self.slave),
+            &self.hostname,
+            topic,
+            queue_size,
+            self.clock.clone(),
+        )
+        .await
     }
 }

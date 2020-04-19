@@ -15,24 +15,26 @@ use std::{
 pub use xmlrpc_fmt::{value::ToXml, Deserialize, Fault, Response, Serialize, Value};
 
 type Handler = Box<dyn (Fn(Vec<Value>) -> Box<dyn Future<Output = Response> + Send>) + Sync + Send>;
+type DefaultHandler =
+    Box<dyn (Fn(String, Vec<Value>) -> Box<dyn Future<Output = Response> + Send>) + Sync + Send>;
 type HandlerMap = HashMap<String, Handler>;
 
 struct ServerHandlers {
     handlers: HandlerMap,
-    on_missing_method: Handler,
+    on_missing_method: DefaultHandler,
 }
 
 impl Default for ServerHandlers {
     fn default() -> Self {
         ServerHandlers {
             handlers: HashMap::new(),
-            on_missing_method: Box::new(|req| Box::new(on_missing_method(req))),
+            on_missing_method: Box::new(|name, req| Box::new(on_missing_method(name, req))),
         }
     }
 }
 
 /// Helper method that returns an error response indicating a missing method.
-pub async fn on_missing_method(_: Vec<Value>) -> Response {
+pub async fn on_missing_method(_: String, _: Vec<Value>) -> Response {
     Err(Fault::new(404, "Requested method does not exist"))
 }
 
@@ -128,9 +130,9 @@ impl ServerBuilder {
     pub fn set_on_missing<T, R>(&mut self, handler: T)
     where
         R: Future<Output = Response> + Send + 'static,
-        T: (Fn(Params) -> R) + Send + Sync + 'static,
+        T: (Fn(String, Params) -> R) + Send + Sync + 'static,
     {
-        self.handlers.on_missing_method = Box::new(move |req| Box::new(handler(req)));
+        self.handlers.on_missing_method = Box::new(move |name, req| Box::new(handler(name, req)));
     }
 
     /// Constructs the actual `Server` by creating a binding to the specific `SocketAddr`.
@@ -205,11 +207,14 @@ impl HandlerService {
         &self,
         req: xmlrpc_fmt::Call,
     ) -> Pin<Box<dyn Future<Output = xmlrpc_fmt::Response> + Send>> {
-        Pin::from(self
-            .0
-            .handlers
-            .get(&req.name)
-            .unwrap_or(&self.0.on_missing_method)(req.params))
+        Pin::from({
+            let handler = self.0.handlers.get(&req.name);
+            if let Some(handler) = handler {
+                handler(req.params)
+            } else {
+                (&self.0.on_missing_method)(req.name, req.params)
+            }
+        })
     }
 }
 
