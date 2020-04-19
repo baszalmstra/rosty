@@ -37,7 +37,6 @@ impl SimTime {
 
     /// Returns the last received time
     pub fn now(&self) -> Option<Time> {
-        let message = self.last_clock_msg.read().unwrap().clone();
-        message.map(Into::into)
+        self.last_clock_msg.read().unwrap().map(Into::into)
     }
 }
