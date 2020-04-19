@@ -53,6 +53,23 @@ fn set_use_sim_time() -> io::Result<Child> {
         .spawn()
 }
 
+pub fn list_topics() -> Result<Vec<String>, failure::Error> {
+    let result = Command::new("rostopic").arg("list").output()?;
+    if !result.status.success() {
+        return Ok(vec![]);
+    }
+
+    let output = String::from_utf8(result.stdout);
+    if let Ok(result) = output {
+        Ok(result
+            .split_whitespace()
+            .map(ToOwned::to_owned)
+            .collect())
+    } else {
+        return Ok(vec![]);
+    }
+}
+
 /// Helper function to check if the roscore is online.
 fn rostopic_listing_succeeds() -> bool {
     let result = Command::new("rostopic").arg("list").output().unwrap();

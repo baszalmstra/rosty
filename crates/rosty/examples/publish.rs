@@ -13,14 +13,14 @@ async fn main() -> Result<(), failure::Error> {
     // Initialize a rosty node
     rosty::init("publish_example").await?;
 
-    let mut publisher = rosty::publish::<rosty_msg::std_msgs::String>("/foo", 8).await?;
+    let publisher = rosty::publish::<rosty_msg::std_msgs::String>("/foo", 8).await?;
 
     let mut counter = 0;
     while !rosty::is_awaiting_shutdown() {
         let mut msg = rosty_msg::std_msgs::String::default();
         msg.data = format!("Hello, timmie! {}", counter);
         counter += 1;
-        publisher.send(&msg).await;
+        publisher.send(&msg).await.unwrap();
         tokio::time::delay_for(Duration::from_millis(1)).await;
     }
 

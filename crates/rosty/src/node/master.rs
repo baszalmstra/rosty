@@ -127,12 +127,13 @@ impl Master {
 
     /// Deregister the publisher of the given topic from the master
     pub async fn unregister_publisher(&self, topic: &str, caller_api: &str) -> Response<i32> {
-        self.client
+        let result = self.client
             .request(
                 "unregisterPublisher",
                 &(&self.client_id, topic, caller_api),
             )
-            .await
+            .await;
+        result
     }
 }
 

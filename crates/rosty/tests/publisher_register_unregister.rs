@@ -3,17 +3,9 @@ use std::time::Duration;
 pub mod util;
 
 #[test]
-fn no_sim_time() {
+fn publisher_register_unregister() {
     util::run_with_node(async {
-        let has_topic_foo = || async {
-            let topics = rosty::topics()
-                .await
-                .unwrap();
-            dbg!(&.iter()
-                .any(|t| t.name == "/foo")topics);
-            topics.iter()
-                .any(|t| t.name == "/foo")
-        };
+        let has_topic_foo = || async { util::list_topics().unwrap().iter().any(|t| t == "/foo") };
 
         let wait_for_topic_foo = |is_available: bool| async move {
             loop {
@@ -26,6 +18,7 @@ fn no_sim_time() {
 
         // Initially the topic should not be available
         assert_eq!(has_topic_foo().await, false);
+        println!("✓ /foo is initially not available.");
 
         let publisher = rosty::publish::<rosty_msg::std_msgs::String>("/foo", 8)
             .await
@@ -36,12 +29,16 @@ fn no_sim_time() {
             _ = tokio::time::delay_for(Duration::from_secs(10)) => panic!("topic /foo was never registered"),
             _ = wait_for_topic_foo(true) => {});
 
+        println!("✓ /foo is now available.");
+
         // Drop the publisher
         drop(publisher);
 
         // Now the topic should go away
         tokio::select!(
-            _ = tokio::time::delay_for(Duration::from_secs(10)) => panic!("topic /foo was never unregistered"),
+            _ = tokio::time::delay_for(Duration::from_secs(30)) => panic!("topic /foo was never unregistered"),
             _ = wait_for_topic_foo(false) => {});
+
+        println!("✓ /foo is no longer available.");
     });
 }
