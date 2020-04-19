@@ -29,10 +29,10 @@ fn test_parameter_api() {
         assert_eq!(param.get::<i32>().await.unwrap(), 10);
 
         // Change it to a boolean
-        // param.set(&true).await.unwrap();
+        param.set(&true).await.unwrap();
 
         // And this should return true
-        // assert!(param.get::<bool>().await.unwrap());
+        assert!(param.get::<bool>().await.unwrap());
 
         // Delete this parameter
         param.delete().await.unwrap();
