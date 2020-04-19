@@ -1,4 +1,4 @@
-mod util;
+pub mod util;
 use futures::{future::maybe_done, pin_mut};
 
 #[test]

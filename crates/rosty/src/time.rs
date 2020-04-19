@@ -1,3 +1,4 @@
+use rosty_msg::rosgraph_msgs::Clock;
 use serde_derive::{Deserialize, Serialize};
 use std::cmp;
 use std::ops;
@@ -166,9 +167,19 @@ impl From<time::Duration> for Duration {
     }
 }
 
+impl From<Clock> for Duration {
+    fn from(clock: Clock) -> Self {
+        Duration {
+            sec: clock.clock.sec as i32,
+            nsec: clock.clock.nsec as i32,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Duration, Time};
+    use rosty_msg::rosgraph_msgs::Clock;
     use std::time;
 
     #[test]
@@ -179,6 +190,17 @@ mod tests {
         let time = Duration::from_nanos(123456789987654321);
         assert_eq!(time.sec, 123456789);
         assert_eq!(time.nsec, 987654321);
+    }
+
+    #[test]
+    fn from_clock_works() {
+        let mut clock = Clock::default();
+        clock.clock.sec = 100;
+        clock.clock.nsec = 1000;
+
+        let duration: Duration = clock.into();
+        assert_eq!(duration.sec, 100);
+        assert_eq!(duration.nsec, 1000);
     }
 
     #[test]

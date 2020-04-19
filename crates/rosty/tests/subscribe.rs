@@ -1,4 +1,4 @@
-mod util;
+pub mod util;
 use futures::StreamExt;
 use tokio::process::Command;
 

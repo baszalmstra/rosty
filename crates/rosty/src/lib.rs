@@ -9,6 +9,7 @@ extern crate tracing;
 
 mod node;
 mod rosxmlrpc;
+mod simtime;
 mod tcpros;
 mod time;
 
@@ -19,6 +20,7 @@ use crate::tcpros::Message;
 use node::{Node, NodeArgs, Param};
 
 use serde::Deserialize;
+use std::time::SystemTime;
 pub use time::{Duration, Time};
 
 /// The instance that represents this node.
@@ -69,6 +71,27 @@ macro_rules! node {
     };
 }
 
+/// Returns 'now' as a Time object
+/// # Situations
+/// * If the node is run normally the current time is returned. Ros calls this WallTime.
+///   This can panic if the SystemTime cannot be retrieved
+/// * If the node is run in simulated time i.e. `/use_sim_time` is true. Then the simulated
+///   time is returned. In this case a panic could occur if the `/clock` topic has not
+///   been published
+pub fn now() -> Duration {
+    if !node!().is_using_sim_time() {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("Could not get the SystemTime")
+            .into()
+    } else {
+        node!()
+            .get_last_sim_clock()
+            .expect("No /clock message received")
+            .into()
+    }
+}
+
 /// Returns the URI of this node
 pub fn uri() -> String {
     node!().uri().to_owned()
@@ -87,6 +110,11 @@ pub fn hostname() -> String {
 /// Returns the bind address of the node
 pub fn bind_address() -> String {
     node!().bind_address().to_owned()
+}
+
+/// Returns wether the node is running with simualated time
+pub fn is_using_sim_time() -> bool {
+    node!().is_using_sim_time()
 }
 
 pub async fn topics() -> Response<Vec<Topic>> {
