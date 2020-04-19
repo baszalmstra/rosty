@@ -1,15 +1,15 @@
-use crate::tcpros::{PublisherStream, Message, PublisherError, PublisherSendError};
-use crate::node::slave::Slave;
-use std::sync::Arc;
 use crate::node::clock::Clock;
+use crate::node::slave::Slave;
+use crate::tcpros::{Message, PublisherError, PublisherSendError, PublisherStream};
 use failure::_core::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Publisher<T: Message> {
     _info: Arc<PublisherInfo>,
     stream: PublisherStream<T>,
     clock: Arc<Clock>,
-    seq: Arc<AtomicUsize>
+    seq: Arc<AtomicUsize>,
 }
 
 impl<T: Message> Publisher<T> {
@@ -21,16 +21,18 @@ impl<T: Message> Publisher<T> {
         clock: Arc<Clock>,
     ) -> Result<Self, PublisherError> {
         // Register the subscription with the slave
-        let stream = slave.add_publication::<T>(hostname, topic, queue_size).await?;
+        let stream = slave
+            .add_publication::<T>(hostname, topic, queue_size)
+            .await?;
 
         Ok(Self {
             _info: Arc::new(PublisherInfo {
                 name: topic.to_owned(),
-                slave
+                slave,
             }),
             clock,
             stream,
-            seq: Arc::new(AtomicUsize::new(0))
+            seq: Arc::new(AtomicUsize::new(0)),
         })
     }
 

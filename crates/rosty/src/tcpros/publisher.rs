@@ -4,7 +4,7 @@ use crate::shutdown_token::ShutdownToken;
 use crate::tcpros::Message;
 use crate::Topic;
 use failure::_core::marker::PhantomData;
-use futures::{StreamExt};
+use futures::StreamExt;
 use std::collections::HashMap;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, ToSocketAddrs};
@@ -107,17 +107,30 @@ impl Publisher {
                     async move {
                         match stream {
                             Ok(stream) => {
-                                let remote = stream.peer_addr().expect("must have a peer addr").to_string();
-                                tokio::spawn(async move {
-                                    let topic_str = topic_str.clone();
-                                    let caller_id_str = caller_id_str.to_owned();
-                                    process_subscriber::<T, _>(&topic_str, stream, &caller_id_str, receiver)
+                                let remote = stream
+                                    .peer_addr()
+                                    .expect("must have a peer addr")
+                                    .to_string();
+                                tokio::spawn(
+                                    async move {
+                                        let topic_str = topic_str.clone();
+                                        let caller_id_str = caller_id_str.to_owned();
+                                        process_subscriber::<T, _>(
+                                            &topic_str,
+                                            stream,
+                                            &caller_id_str,
+                                            receiver,
+                                        )
                                         .await;
-                                }.instrument(tracing::info_span!(
-                                    "publisher",
-                                    topic=topic_str2.as_str(),
-                                    remote=remote.as_str()
-                                )));
+                                    }
+                                    .instrument(
+                                        tracing::info_span!(
+                                            "publisher",
+                                            topic = topic_str2.as_str(),
+                                            remote = remote.as_str()
+                                        ),
+                                    ),
+                                );
                             }
                             Err(e) => error!("incoming connection failed: {}", e),
                         };
@@ -151,8 +164,12 @@ impl Publisher {
     }
 }
 
-async fn process_subscriber<T, U>(topic: &str, mut stream: U, pub_caller_id: &str, mut receiver: broadcast::Receiver<Vec<u8>>)
-where
+async fn process_subscriber<T, U>(
+    topic: &str,
+    mut stream: U,
+    pub_caller_id: &str,
+    mut receiver: broadcast::Receiver<Vec<u8>>,
+) where
     T: Message,
     U: AsyncWrite + AsyncRead + Send + Unpin,
 {
@@ -171,13 +188,11 @@ where
 
         while let Some(data) = receiver.next().await {
             match data {
-                Ok(message) => {
-                    match stream.write_all(&message).await {
-                        Ok(_) => {},
-                        Err(e) => {
-                            error!("error sending message: {}, disconnecting..", e);
-                            return;
-                        }
+                Ok(message) => match stream.write_all(&message).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("error sending message: {}, disconnecting..", e);
+                        return;
                     }
                 },
                 Err(RecvError::Closed) => {
@@ -189,10 +204,9 @@ where
                 }
             }
         }
-    }.instrument(tracing::info_span!(
-        "caller",
-        id=caller_id.as_str()
-    )).await
+    }
+    .instrument(tracing::info_span!("caller", id = caller_id.as_str()))
+    .await
 }
 
 async fn handshake<T: Message, U: AsyncRead + AsyncWrite + Unpin>(
@@ -236,12 +250,14 @@ async fn write_handshake_response<T: Message, U: AsyncWrite + Unpin>(
 #[derive(Clone)]
 pub struct PublisherStream<T: Message> {
     datatype: PhantomData<T>,
-    sender: broadcast::Sender<Vec<u8>>
+    sender: broadcast::Sender<Vec<u8>>,
 }
 
 impl<T: Message> PublisherStream<T> {
     pub async fn send(&self, message: T) -> Result<(), PublisherSendError> {
-        let bytes = message.encode_vec().map_err(PublisherSendError::EncodingError)?;
+        let bytes = message
+            .encode_vec()
+            .map_err(PublisherSendError::EncodingError)?;
 
         // TODO: latching??
 

@@ -116,7 +116,12 @@ impl Master {
     }
 
     /// Register the publisher of the given topic with the master
-    pub async fn register_publisher(&self, topic: &str, topic_type: &str, caller_api: &str) -> Response<Vec<String>> {
+    pub async fn register_publisher(
+        &self,
+        topic: &str,
+        topic_type: &str,
+        caller_api: &str,
+    ) -> Response<Vec<String>> {
         self.client
             .request(
                 "registerPublisher",
@@ -127,11 +132,9 @@ impl Master {
 
     /// Deregister the publisher of the given topic from the master
     pub async fn unregister_publisher(&self, topic: &str, caller_api: &str) -> Response<i32> {
-        let result = self.client
-            .request(
-                "unregisterPublisher",
-                &(&self.client_id, topic, caller_api),
-            )
+        let result = self
+            .client
+            .request("unregisterPublisher", &(&self.client_id, topic, caller_api))
             .await;
         result
     }

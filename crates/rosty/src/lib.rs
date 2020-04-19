@@ -9,19 +9,18 @@ extern crate tracing;
 
 mod node;
 mod rosxmlrpc;
-mod tcpros;
 mod shutdown_token;
+mod tcpros;
 
 pub use crate::node::Topic;
+use crate::node::{Publisher, PublisherError};
 use crate::node::{Subscriber, SubscriptionError};
 use crate::rosxmlrpc::Response;
-use crate::tcpros::{Message};
-use crate::node::{Publisher, PublisherError};
+use crate::tcpros::Message;
 use node::{Node, NodeArgs, Param};
 
-
+use rosty_msg::Time;
 use serde::Deserialize;
-use rosty_msg::{Time};
 
 /// The instance that represents this node.
 static NODE: Lazy<ShardedLock<Option<Node>>> = Lazy::new(|| ShardedLock::new(None));
@@ -152,5 +151,7 @@ pub async fn subscribe<T: Message>(
 
 pub async fn publish<T: Message>(
     topic: &str,
-    queue_size: usize
-) -> Result<Publisher<T>, PublisherError> { node!().publish(topic, queue_size).await }
+    queue_size: usize,
+) -> Result<Publisher<T>, PublisherError> {
+    node!().publish(topic, queue_size).await
+}

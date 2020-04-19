@@ -110,17 +110,23 @@ impl Slave {
             let hostname_string = hostname_string.clone();
             async move {
                 let mut args = unwrap_array_case(args).into_iter();
-                let _caller_id = args.next().ok_or_else(|| ResponseError::Client("missing argument 'caller_id'".into()))?;
+                let _caller_id = args
+                    .next()
+                    .ok_or_else(|| ResponseError::Client("missing argument 'caller_id'".into()))?;
                 let topic = match args.next() {
                     Some(Value::String(topic)) => topic,
-                    _ => return Err(ResponseError::Client("missing argument 'topic'".into()))
+                    _ => return Err(ResponseError::Client("missing argument 'topic'".into())),
                 };
                 let protocols = match args.next() {
                     Some(Value::Array(protocols)) => protocols,
                     Some(_) => {
-                        return Err(ResponseError::Client("protocols need to be provided as [[String, XmlRpcLegalValue]]".into()))
+                        return Err(ResponseError::Client(
+                            "protocols need to be provided as [[String, XmlRpcLegalValue]]".into(),
+                        ))
                     }
-                    None => return Err(ResponseError::Client("missing argument 'protocols'".into())),
+                    None => {
+                        return Err(ResponseError::Client("missing argument 'protocols'".into()))
+                    }
                 };
                 let port = pubs.get_port(&topic).await.ok_or_else(|| {
                     ResponseError::Client("requested topic not published by node".into())
@@ -142,7 +148,7 @@ impl Slave {
                     ]))
                 } else {
                     Err(ResponseError::Server(
-                        "no matching protocols available".into()
+                        "no matching protocols available".into(),
                     ))
                 }
             }
@@ -186,12 +192,14 @@ impl Slave {
             futures::stream::iter(subs.remove_all().await.iter())
                 .for_each_concurrent(None, |topic| {
                     unregister_subscriber(master, &topic, &caller_api)
-                }).await;
+                })
+                .await;
 
             futures::stream::iter(pubs.remove_all().await.iter())
                 .for_each_concurrent(None, |topic| {
                     unregister_publisher(master, &topic, &caller_api)
-                }).await;
+                })
+                .await;
 
             Ok(())
         })

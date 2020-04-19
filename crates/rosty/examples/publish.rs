@@ -1,6 +1,6 @@
+use std::time::Duration;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;
-use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), failure::Error> {

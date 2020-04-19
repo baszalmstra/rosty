@@ -23,8 +23,8 @@ use serde::{Deserialize, Serialize};
 use tracing_futures::Instrument;
 
 use clock::Clock;
-use simtime::SimTime;
 use rosty_msg::Time;
+use simtime::SimTime;
 
 /// Represents a param on the parameter server
 pub struct Param {

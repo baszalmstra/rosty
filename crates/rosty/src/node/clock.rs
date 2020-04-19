@@ -1,10 +1,10 @@
 use super::simtime::SimTime;
-use std::time::{SystemTime};
 use crate::node::{Node, SubscriptionError};
 use rosty_msg::Time;
+use std::time::SystemTime;
 
 pub struct Clock {
-    pub(crate) sim_time: Option<SimTime>
+    pub(crate) sim_time: Option<SimTime>,
 }
 
 impl Clock {
@@ -18,16 +18,14 @@ impl Clock {
     pub fn now(&self) -> Option<Time> {
         match &self.sim_time {
             Some(sim_time) => sim_time.now(),
-            None => {
-                SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .ok()
-                    .map(|d| Time::from_nanos(d.as_nanos() as i64))
-            }
+            None => SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .ok()
+                .map(|d| Time::from_nanos(d.as_nanos() as i64)),
         }
     }
 
-    pub(crate) async fn init(&self, node: &Node) -> Result<(), SubscriptionError>{
+    pub(crate) async fn init(&self, node: &Node) -> Result<(), SubscriptionError> {
         if let Some(sim_time) = &self.sim_time {
             sim_time.init(node).await?;
         }
@@ -39,5 +37,3 @@ impl Clock {
         self.sim_time.is_some()
     }
 }
-
-

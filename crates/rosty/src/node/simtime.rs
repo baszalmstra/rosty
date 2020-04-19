@@ -1,8 +1,8 @@
 use crate::node::{Node, SubscriptionError};
 
 use futures::StreamExt;
-use std::sync::{Arc, RwLock};
 use rosty_msg::Time;
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]
 /// The Simulated Time struct, holds a reference to the last message received on the clock interface
