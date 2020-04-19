@@ -145,7 +145,7 @@ impl Publisher {
         &self,
         queue_size: usize,
     ) -> Result<PublisherStream<T>, PublisherError> {
-        let mut stream = PublisherStream {
+        let stream = PublisherStream {
             datatype: PhantomData::default(),
             sender: self.sender.clone(),
         };

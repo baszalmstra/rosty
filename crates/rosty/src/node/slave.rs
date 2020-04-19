@@ -126,7 +126,7 @@ impl Slave {
                     ResponseError::Client("requested topic not published by node".into())
                 })?;
                 let ip = hostname_string.clone();
-                let mut has_tcpros = protocols.iter().any(|p| {
+                let has_tcpros = protocols.iter().any(|p| {
                     if let Value::Array(protocol) = p {
                         if let Some(&Value::String(ref name)) = protocol.get(0) {
                             return name == "TCPROS";
