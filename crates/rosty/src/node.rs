@@ -144,7 +144,7 @@ impl Node {
             None
         };
 
-        Ok(Node {
+        let node = Node {
             slave: Arc::new(slave),
             master,
             hostname: args.hostname.to_owned(),
@@ -153,18 +153,14 @@ impl Node {
             result: result_mutex,
             shutdown_token,
             sim_time,
-        })
-    }
+        };
 
-    /// Initializes the receiving of the simulated time
-    /// This function panics if the '/use_sim_time'
-    /// parameter was not found
-    pub async fn init_sim_time(&self) -> Result<(), SubscriptionError> {
-        self.sim_time
-            .as_ref()
-            .expect("SimTime was None, this means the /use_sim_time topic was not found")
-            .init(self)
-            .await
+        // Initialize sim time if we are using it
+        if node.sim_time.is_some() {
+            node.sim_time.as_ref().unwrap().init(&node).await?;
+        }
+
+        Ok(node)
     }
 
     /// Returns the URI of this node

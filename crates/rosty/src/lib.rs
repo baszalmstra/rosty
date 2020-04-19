@@ -42,11 +42,6 @@ pub async fn init_with_args(args: NodeArgs, capture_sigint: bool) -> Result<(), 
 
     let node = Node::new(args).await?;
 
-    // Initialize the use of simtime
-    if node.is_using_sim_time() {
-        node.init_sim_time().await?;
-    }
-
     if capture_sigint {
         let shutdown_sender = node.shutdown_token.clone();
         ctrlc::set_handler(move || {
